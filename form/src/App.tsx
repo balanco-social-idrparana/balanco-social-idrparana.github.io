@@ -13,7 +13,6 @@ import { GRADE_SOCIAL, GRADE_AMBIENTAL } from './data/grades';
 import { enviarRelatorio, AnexoPayload, RespostaEnvio } from './lib/api';
 
 const BASE = import.meta.env.BASE_URL || '/';
-const URL_PLANILHA = `${BASE}planilha-complementar-bs-2025.xlsx`;
 const URL_ORIENTACOES = `${BASE}orientacoes-bs-2025.pdf`;
 
 // Descrição (texto) que acompanha cada grade, por aspecto.
@@ -156,13 +155,11 @@ export function App() {
 function RecursosDownload() {
   return (
     <div className="recursos">
-      <strong>Os dados de parcerias e impactos econômicos são preenchidos direto
-      neste formulário</strong> (seção 4). A planilha complementar e as
-      orientações ficam disponíveis abaixo apenas para consulta/referência.
+      <strong>Preencha um relatório por ação ou tecnologia.</strong> As parcerias e os
+      impactos econômicos detalhados são informados na seção 4, com cálculo automático
+      (não é necessário baixar nem anexar planilha).
       <div className="recursos-links">
-        <a className="recurso-link" href={URL_PLANILHA} download>
-          ⬇ Baixar planilha complementar (.xlsx)
-        </a>
+        <a className="recurso-link" href="../">📖 Instruções (página inicial)</a>
         <a className="recurso-link" href={URL_ORIENTACOES} target="_blank" rel="noreferrer">
           📄 Orientações BS 2025 (PDF)
         </a>
