@@ -53,7 +53,6 @@ A ordem das colunas abaixo é a ordem na planilha.
 | `ano_tecnologia` | Ano de desenvolvimento da tecnologia | não | |
 | `resumo` | Resumo descritivo | sim | |
 | `abrangencia_geografica` | Abrangência geográfica | sim | |
-| `parcerias_confirmado` | Parcerias e cooperações (confirmação) | sim | Checkbox confirmando o preenchimento da aba "Parcerias" na planilha complementar. |
 | `impactos_gerais` | Impactos gerais na cadeia produtiva ou área | sim | |
 | `econ_produtividade` | Econômicos — Incremento de produtividade | sim | |
 | `econ_reducao_custos` | Econômicos — Redução de custos | sim | |
@@ -73,6 +72,7 @@ A ordem das colunas abaixo é a ordem na planilha.
 | `amb_qualidade_produto_desc` | Ambientais — Qualidade do Produto (descrição) | sim | |
 | `amb_conclusao` | Ambientais — Conclusão | sim | |
 | `publicacoes` | Publicações e matérias | não | |
+| `beneficio_economico_total` | — | calculado | Soma (R$) dos benefícios econômicos dos blocos preenchidos. |
 | `indice_social` | — | calculado | Média dos coeficientes sociais aplicáveis (ignora `NA`). |
 | `indice_ambiental` | — | calculado | Média dos coeficientes ambientais aplicáveis (ignora `NA`). |
 | `criado_em` | — | gerado | Timestamp do servidor. |
@@ -89,9 +89,16 @@ Quantas linhas surgem por relatório:
   por coeficiente social (todos respondidos; `NA` conta como resposta).
 - **`grade_ambiental`** — `protocolo`, `aspecto`, `coeficiente`, `valor`. Uma
   linha por coeficiente ambiental (todos respondidos).
+- **`parcerias`** — `protocolo`, `instituicao`, `funcao`, `valor_investido`,
+  `participacao_pct`. Uma linha por parceria informada (opcional).
+- **`econ_detalhe`** — `protocolo`, `tipo`, `ano`, `anterior`, `atual`, `preco`,
+  `custo`, `ganho_unitario`, `participacao_idr`, `area`, `ganho_liquido`,
+  `beneficio`, `outros_estados_ha`, `outros_paises_ha`. Uma linha por bloco
+  econômico preenchido. `tipo` ∈ `{ produtividade, reducao_custos, expansao,
+  agregacao }`; `ganho_unitario`/`ganho_liquido`/`beneficio` são calculados.
 - **`anexos`** — `protocolo`, `tipo`, `nome_arquivo`, `drive_file_id`,
   `tamanho_bytes`, `criado_em`. O `drive_file_id` não é exposto. `tipo` ∈
-  `{ foto_documento, planilha_complementar }`.
+  `{ foto_documento }` (fotos/documentos opcionais).
 - **`_log`** — `timestamp`, `ip_hash`, `origin`, `acao`, `ref`, `detalhe`.
   Interno.
 
@@ -205,15 +212,49 @@ gravada na planilha; o título é o que aparece na seção. Fonte:
 - Resíduos químicos em produto agroindustrial ou na cadeia
 - Contaminantes biológicos em produto agroindustrial ou na cadeia
 
-## Anexos
+## Seção 4 — Planilha complementar (parcerias + impactos econômicos)
+
+Esta seção **incorpora no formulário** os dados que antes eram preenchidos na
+planilha `.xlsx` complementar. Todo o preenchimento é **opcional** (informe o que
+se aplica). A planilha permanece disponível para download apenas como referência.
+
+### Parcerias e cooperações (aba `parcerias`)
+
+Tabela repetível — uma linha por parceria:
+
+| Campo | Coluna | Observação |
+|---|---|---|
+| Instituição | `instituicao` | Obrigatório se a linha existir. |
+| Função da entidade na parceria | `funcao` | |
+| Valor investido pela entidade parceira (R$) | `valor_investido` | Número ≥ 0. |
+| Participação no impacto observado (%) | `participacao_pct` | 0 a 100. |
+
+### Impactos econômicos detalhados (aba `econ_detalhe`)
+
+Quatro blocos (`produtividade`, `reducao_custos`, `expansao`, `agregacao`). Cada
+bloco coleta os valores de entrada; o sistema **calcula** o ganho unitário, o
+ganho líquido IDR e o benefício econômico com as mesmas fórmulas da planilha:
+
+- `ganho_unitario` — produtividade: `(atual − anterior) × preço − custo`;
+  redução de custos: `anterior − atual`; expansão/agregação: `atual − anterior`.
+- `ganho_liquido` = `ganho_unitario × participacao_idr / 100`.
+- `beneficio` = `ganho_liquido × area`.
+
+Entradas por bloco: `ano`, `anterior`, `atual`, `preco`/`custo` (só
+produtividade), `participacao_idr` (%), `area` (área de adoção/expansão ou
+produção estimada), `outros_estados_ha`, `outros_paises_ha`. O
+`beneficio_economico_total` da aba `relatorios` é a soma dos benefícios.
+
+## Anexos (fotos e documentos)
 
 | Tipo | Chave | Obrigatório | Observação |
 |---|---|---|---|
-| Planilha complementar | `planilha_complementar` | sim | Ao menos um anexo deste tipo (planilha Ambitec-Agro, incluindo a aba "Parcerias"). |
-| Fotos e documentos | `foto_documento` | não | Imagens e documentos de apoio. |
+| Fotos e documentos | `foto_documento` | não | Imagens e documentos de apoio (vários). |
 
-Tipos de arquivo aceitos: planilha (`.xlsx`, `.xls`), PDF, JPEG e PNG. Os
-limites de tamanho são definidos em `apps-script/Config.gs`.
+Tipos de arquivo aceitos: PDF, JPEG e PNG. Os limites de tamanho são definidos em
+`apps-script/Config.gs`. **A planilha complementar não é mais anexada** — seus
+dados são informados na seção 4 (o backend ainda aceita o tipo de arquivo de
+planilha, mas o formulário não oferece esse upload).
 
 ## Regras de validação (cliente e servidor)
 
@@ -221,6 +262,7 @@ limites de tamanho são definidos em `apps-script/Config.gs`.
 - Ao menos um eixo estratégico e ao menos um ODS marcados.
 - As grades social e ambiental com **todos** os coeficientes respondidos
   (`NA` conta como resposta); nenhum coeficiente desconhecido.
-- Ao menos um anexo do tipo `planilha_complementar`.
+- `parcerias` e `econ_detalhe` são opcionais; valores numéricos ≥ 0 e
+  percentuais em [0, 100]. Anexos são opcionais.
 - O campo oculto `website_url` (honeypot) deve vir vazio; reCAPTCHA v3 (action
   `relatorio_bs`) válido e `origin` autorizado.

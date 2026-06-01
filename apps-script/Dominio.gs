@@ -103,6 +103,96 @@ var GRADE_AMBIENTAL_DEF = {
 
 var TIPOS_ANEXO_PERMITIDOS = ['foto_documento', 'planilha_complementar'];
 
+// ─── Impactos econômicos detalhados (abas da planilha complementar) ──────────
+var TIPOS_ECON = ['produtividade', 'reducao_custos', 'expansao', 'agregacao'];
+
+function numND(v) {
+  var n = Number(v);
+  return (v === '' || v === null || v === undefined || isNaN(n)) ? 0 : n;
+}
+
+/** Número opcional: vazio é ok; senão precisa ser ≥0 (e ≤max se informado). */
+function numOpcOk(v, max) {
+  if (v === '' || v === null || v === undefined) return true;
+  var n = Number(v);
+  if (isNaN(n) || n < 0) return false;
+  if (max !== undefined && n > max) return false;
+  return true;
+}
+
+/** Reproduz as fórmulas da planilha para um bloco econômico. */
+function calcularEconBloco(tipo, b) {
+  b = b || {};
+  var gu;
+  if (tipo === 'produtividade') gu = (numND(b.atual) - numND(b.anterior)) * numND(b.preco) - numND(b.custo);
+  else if (tipo === 'reducao_custos') gu = numND(b.anterior) - numND(b.atual);
+  else gu = numND(b.atual) - numND(b.anterior); // expansao e agregacao
+  var gl = gu * numND(b.participacao_idr) / 100;
+  var ben = gl * numND(b.area);
+  var r2 = function (x) { return Math.round(x * 100) / 100; };
+  return { ganho_unitario: r2(gu), ganho_liquido: r2(gl), beneficio: r2(ben) };
+}
+
+function validarParcerias(arr) {
+  if (arr === undefined || arr === null) return null;
+  if (!Array.isArray(arr)) return { erro: 'parcerias inválidas' };
+  if (arr.length > 50) return { erro: 'número de parcerias excede o limite' };
+  for (var i = 0; i < arr.length; i++) {
+    var p = arr[i] || {};
+    if (!p.instituicao || String(p.instituicao).trim() === '') return { erro: 'parceria sem instituição', indice: i };
+    if (String(p.instituicao).length > 300 || String(p.funcao || '').length > 300) return { erro: 'texto de parceria muito longo', indice: i };
+    if (!numOpcOk(p.valor_investido)) return { erro: 'valor investido inválido em parceria', indice: i };
+    if (!numOpcOk(p.participacao_pct, 100)) return { erro: 'participação (%) inválida em parceria', indice: i };
+  }
+  return null;
+}
+
+function validarEconDetalhe(obj) {
+  if (obj === undefined || obj === null) return null;
+  if (typeof obj !== 'object') return { erro: 'econ_detalhe inválido' };
+  var campos = ['anterior', 'atual', 'preco', 'custo', 'area', 'outros_estados_ha', 'outros_paises_ha'];
+  for (var t = 0; t < TIPOS_ECON.length; t++) {
+    var b = obj[TIPOS_ECON[t]];
+    if (!b) continue;
+    for (var c = 0; c < campos.length; c++) {
+      if (!numOpcOk(b[campos[c]])) return { erro: 'valor numérico inválido em econ_detalhe', tipo: TIPOS_ECON[t], campo: campos[c] };
+    }
+    if (!numOpcOk(b.participacao_idr, 100)) return { erro: 'participação IDR (%) inválida', tipo: TIPOS_ECON[t] };
+    if (b.ano !== undefined && String(b.ano).length > 20) return { erro: 'ano inválido em econ_detalhe', tipo: TIPOS_ECON[t] };
+  }
+  return null;
+}
+
+/**
+ * Monta as linhas da aba `econ_detalhe` (uma por tipo com dados) com os valores
+ * calculados. Retorna { linhas, total } — total = benefício econômico somado.
+ */
+function montarEconDetalhe(obj) {
+  obj = obj || {};
+  var num = function (v) { return (v === '' || v === null || v === undefined) ? '' : Number(v); };
+  var linhas = [];
+  var total = 0;
+  for (var t = 0; t < TIPOS_ECON.length; t++) {
+    var tipo = TIPOS_ECON[t];
+    var b = obj[tipo] || {};
+    var temDados = ['anterior', 'atual', 'preco', 'custo', 'participacao_idr', 'area', 'outros_estados_ha', 'outros_paises_ha']
+      .some(function (k) { return b[k] !== '' && b[k] !== null && b[k] !== undefined; });
+    if (!temDados) continue;
+    var calc = calcularEconBloco(tipo, b);
+    total += calc.beneficio;
+    linhas.push({
+      tipo: tipo,
+      ano: b.ano || '',
+      anterior: num(b.anterior), atual: num(b.atual), preco: num(b.preco), custo: num(b.custo),
+      ganho_unitario: calc.ganho_unitario,
+      participacao_idr: num(b.participacao_idr), area: num(b.area),
+      ganho_liquido: calc.ganho_liquido, beneficio: calc.beneficio,
+      outros_estados_ha: num(b.outros_estados_ha), outros_paises_ha: num(b.outros_paises_ha)
+    });
+  }
+  return { linhas: linhas, total: Math.round(total * 100) / 100 };
+}
+
 /** Normaliza e-mail p/ chave de rate-limit (Gmail: remove pontos e sufixo +tag). */
 function normalizarEmail(email) {
   var s = String(email || '').trim().toLowerCase();

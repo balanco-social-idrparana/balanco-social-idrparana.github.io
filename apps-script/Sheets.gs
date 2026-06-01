@@ -13,7 +13,7 @@ var SCHEMA = {
     'protocolo', 'email', 'responsavel', 'titulo',
     'diretoria_departamento', 'programa_projeto', 'coordenacao_equipe',
     'ano_tecnologia', 'resumo', 'abrangencia_geografica',
-    'parcerias_confirmado', 'impactos_gerais',
+    'impactos_gerais',
     'econ_produtividade', 'econ_reducao_custos', 'econ_expansao_area',
     'econ_agregacao_valor', 'econ_memoria_calculo', 'econ_fontes',
     'social_emprego_desc', 'social_renda_desc', 'social_bemestar_desc',
@@ -21,12 +21,17 @@ var SCHEMA = {
     'amb_eficiencia_desc', 'amb_conservacao_desc', 'amb_recuperacao_desc',
     'amb_bemestar_animal_desc', 'amb_qualidade_produto_desc', 'amb_conclusao',
     'publicacoes',
+    'beneficio_economico_total',
     'indice_social', 'indice_ambiental', 'criado_em', 'status'
   ],
   eixos:           ['protocolo', 'eixo'],
   ods:             ['protocolo', 'ods'],
   grade_social:    ['protocolo', 'aspecto', 'coeficiente', 'valor'],
   grade_ambiental: ['protocolo', 'aspecto', 'coeficiente', 'valor'],
+  parcerias:       ['protocolo', 'instituicao', 'funcao', 'valor_investido', 'participacao_pct'],
+  econ_detalhe:    ['protocolo', 'tipo', 'ano', 'anterior', 'atual', 'preco', 'custo',
+                    'ganho_unitario', 'participacao_idr', 'area',
+                    'ganho_liquido', 'beneficio', 'outros_estados_ha', 'outros_paises_ha'],
   anexos:          ['protocolo', 'tipo', 'nome_arquivo', 'drive_file_id', 'tamanho_bytes', 'criado_em'],
   _log:            ['timestamp', 'ip_hash', 'origin', 'acao', 'ref', 'detalhe']
 };
@@ -57,6 +62,19 @@ function escaparCelula(v) {
   if (v === undefined || v === null) return '';
   if (typeof v !== 'string') return v; // números/datas passam direto
   return /^[=+\-@\t\r]/.test(v) ? "'" + v : v;
+}
+
+/**
+ * Garante que a linha 1 da aba contém exatamente o cabeçalho do SCHEMA atual
+ * (sobrescreve). Seguro quando ainda não há dados; usado pelo configurarRecursos
+ * para refletir mudanças de schema sem precisar apagar abas manualmente.
+ */
+function garantirCabecalho(ss, nome) {
+  var aba = abaPorNome(ss, nome);
+  var cols = SCHEMA[nome];
+  aba.getRange(1, 1, 1, cols.length).setValues([cols]);
+  aba.setFrozenRows(1);
+  return aba;
 }
 
 function montarLinha(nomeAba, registro) {

@@ -87,6 +87,21 @@ button.remover { background: #fff; color: var(--cor-erro); border: 1px solid var
 .grade td.grade-val input { width: auto; cursor: pointer; }
 .grade tbody tr:hover { background: #f0f6ff; }
 
+/* ─── Listas repetíveis (parcerias) ──────────────────────────────────────── */
+button.secundario { background: #fff; color: var(--cor-texto); border: 1px solid var(--cor-borda); }
+button.secundario:hover:not(:disabled) { background: #f0f6ff; border-color: var(--cor-primaria); }
+.lista-item { border: 1px dashed var(--cor-borda); border-radius: 6px; padding: 12px; margin-bottom: 10px; background: #fafbfc; }
+.lista-item .acoes { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+/* ─── Campos calculados (impactos econômicos) ────────────────────────────── */
+input.calculado { background: #f6f8fa; color: var(--cor-texto-suave); font-weight: 500; cursor: default; }
+input.calculado.destaque { background: #e6f4ea; color: #1a5c2a; font-weight: 700; }
+.total-beneficio {
+  margin-top: 16px; padding: 12px 14px; background: #e6f4ea; border: 1px solid #2e6e3a;
+  border-radius: 6px; font-size: 1rem;
+}
+.total-beneficio strong { font-size: 1.1rem; }
+
 /* ─── Anexos ─────────────────────────────────────────────────────────────── */
 .anexo-ok { color: #2e6e3a; font-size: 0.85rem; margin-top: 6px; }
 .anexo-lista { list-style: none; margin: 8px 0 0; padding: 0; }

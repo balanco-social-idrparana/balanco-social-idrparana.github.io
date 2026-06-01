@@ -48,6 +48,47 @@ function gradeCompleta(grupos: GrupoGrade[]) {
   };
 }
 
+// ─── Planilha complementar: Parcerias + impactos econômicos detalhados ───────
+
+// Número opcional não-negativo (campo vazio → undefined).
+const numOpc = z.preprocess(
+  (v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v)) ? undefined : Number(v)),
+  z.number().nonnegative('use um número ≥ 0').optional()
+);
+const pctOpc = z.preprocess(
+  (v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v)) ? undefined : Number(v)),
+  z.number().min(0).max(100, 'use 0 a 100').optional()
+);
+
+const parceriaSchema = z.object({
+  instituicao: z.string().trim().min(1, 'informe a instituição'),
+  funcao: z.string().trim().max(300).optional().default(''),
+  valor_investido: numOpc,
+  participacao_pct: pctOpc,
+});
+export type Parceria = z.infer<typeof parceriaSchema>;
+
+// Um bloco = uma aba de cálculo. Todos os campos opcionais (preencha o que se aplica).
+const blocoEconSchema = z.object({
+  ano: z.string().trim().max(20).optional().default('2025'),
+  anterior: numOpc,
+  atual: numOpc,
+  preco: numOpc,
+  custo: numOpc,
+  participacao_idr: pctOpc,
+  area: numOpc,
+  outros_estados_ha: numOpc,
+  outros_paises_ha: numOpc,
+});
+export type BlocoEconValores = z.infer<typeof blocoEconSchema>;
+
+const econDetalheSchema = z.object({
+  produtividade: blocoEconSchema,
+  reducao_custos: blocoEconSchema,
+  expansao: blocoEconSchema,
+  agregacao: blocoEconSchema,
+});
+
 // ─── Schema principal ────────────────────────────────────────────────────────
 
 export const relatorioSchema = z.object({
@@ -65,7 +106,6 @@ export const relatorioSchema = z.object({
   ods: z.array(z.enum(ODS)).min(1, 'selecione ao menos um ODS'),
   resumo: textoObrig('Resumo descritivo'),
   abrangencia_geografica: textoObrig('Abrangência geográfica'),
-  parcerias_confirmado: z.literal(true, { message: 'confirme o preenchimento da aba "Parcerias" na planilha' }),
 
   // Impactos gerais
   impactos_gerais: textoObrig('Impactos gerais na cadeia produtiva ou área'),
@@ -77,6 +117,11 @@ export const relatorioSchema = z.object({
   econ_agregacao_valor: textoObrig('Agregação de valor'),
   econ_memoria_calculo: textoObrig('Memória de cálculo'),
   econ_fontes: textoObrig('Fontes de dados'),
+
+  // Planilha complementar — Parcerias e impactos econômicos detalhados (opcional;
+  // preencha o que se aplica). Substitui o preenchimento manual da planilha .xlsx.
+  parcerias: z.array(parceriaSchema).default([]),
+  econ_detalhe: econDetalheSchema,
 
   // Sociais (texto + grade)
   social_emprego_desc: textoObrig('Aspecto Emprego (descrição)'),
@@ -115,7 +160,13 @@ export const valoresPadrao: Partial<RelatorioInput> = {
   ods: [],
   grade_social: [],
   grade_ambiental: [],
+  parcerias: [],
+  econ_detalhe: {
+    produtividade: { ano: '2025' },
+    reducao_custos: { ano: '2025' },
+    expansao: { ano: '2025' },
+    agregacao: { ano: '2025' },
+  },
   publicacoes: '',
   website_url: '',
-  parcerias_confirmado: false as unknown as true,
 };

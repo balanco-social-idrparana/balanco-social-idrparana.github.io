@@ -53,11 +53,6 @@ function doPost(e) {
 
     if (!validarEmail(corpo.email)) return resposta(400, { erro: 'e-mail inválido' });
 
-    // Confirmação obrigatória de parcerias e cooperações.
-    if (corpo.parcerias_confirmado !== true) {
-      return resposta(400, { erro: 'confirmação de parcerias e cooperações obrigatória' });
-    }
-
     // 5. Listas obrigatórias: eixos e ODS validados contra conjunto FECHADO.
     if (!validarSubconjunto(corpo.eixos, EIXOS_PERMITIDOS)) {
       return resposta(400, { erro: 'eixos estratégicos inválidos ou ausentes' });
@@ -73,15 +68,14 @@ function doPost(e) {
     erroGrade = validarGradeContra(corpo.grade_ambiental, GRADE_AMBIENTAL_DEF, 'grade_ambiental');
     if (erroGrade) return resposta(400, erroGrade);
 
-    // 7. Anexos: exigir pelo menos uma planilha complementar.
+    // 7. Seção complementar: parcerias + impactos econômicos detalhados (opcional).
+    var erroParc = validarParcerias(corpo.parcerias);
+    if (erroParc) return resposta(400, erroParc);
+    var erroEcon = validarEconDetalhe(corpo.econ_detalhe);
+    if (erroEcon) return resposta(400, erroEcon);
+
+    // Anexos agora são opcionais (a planilha é preenchida no próprio formulário).
     var anexos = Array.isArray(corpo.anexos) ? corpo.anexos : [];
-    var temPlanilha = false;
-    for (var a = 0; a < anexos.length; a++) {
-      if (anexos[a] && anexos[a].tipo === 'planilha_complementar') { temPlanilha = true; break; }
-    }
-    if (!temPlanilha) {
-      return resposta(400, { erro: 'anexe ao menos uma planilha complementar' });
-    }
 
     // 8. Anexos — soma e limite total (cálculo de bytes desconta padding base64).
     var totalBytes = 0;
@@ -123,9 +117,10 @@ function doPost(e) {
         anexosSalvos.push(salvarAnexo(pasta, anexos[k]));
       }
 
-      // 12. Calcula índices a partir das grades.
+      // 12. Calcula índices (grades) e impactos econômicos detalhados.
       var indiceSocial = calcularIndice(corpo.grade_social);
       var indiceAmbiental = calcularIndice(corpo.grade_ambiental);
+      var econ = montarEconDetalhe(corpo.econ_detalhe);
 
       // 13. Registro principal (append-only).
       var registro = {
@@ -139,7 +134,6 @@ function doPost(e) {
         ano_tecnologia: corpo.ano_tecnologia || '',
         resumo: corpo.resumo,
         abrangencia_geografica: corpo.abrangencia_geografica,
-        parcerias_confirmado: corpo.parcerias_confirmado === true ? 'SIM' : '',
         impactos_gerais: corpo.impactos_gerais,
         econ_produtividade: corpo.econ_produtividade,
         econ_reducao_custos: corpo.econ_reducao_custos,
@@ -159,6 +153,7 @@ function doPost(e) {
         amb_qualidade_produto_desc: corpo.amb_qualidade_produto_desc,
         amb_conclusao: corpo.amb_conclusao,
         publicacoes: corpo.publicacoes || '',
+        beneficio_economico_total: econ.total,
         indice_social: indiceSocial,
         indice_ambiental: indiceAmbiental
         // criado_em e status são definidos por appendRelatorio.
@@ -170,6 +165,8 @@ function doPost(e) {
       replaceFilhas(ss, 'ods', protocolo, mapearOds(corpo.ods));
       replaceFilhas(ss, 'grade_social', protocolo, corpo.grade_social);
       replaceFilhas(ss, 'grade_ambiental', protocolo, corpo.grade_ambiental);
+      replaceFilhas(ss, 'parcerias', protocolo, Array.isArray(corpo.parcerias) ? corpo.parcerias : []);
+      replaceFilhas(ss, 'econ_detalhe', protocolo, econ.linhas);
       replaceFilhas(ss, 'anexos', protocolo, anexosSalvos);
 
       registrarLogSeguro(ipHash, corpo.origin, 'relatorio_ok', protocolo, mascararEmail(corpo.email));

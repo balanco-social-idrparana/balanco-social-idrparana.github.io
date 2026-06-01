@@ -6,6 +6,8 @@ import { Field } from './components/Field';
 import { CheckboxGroup } from './components/CheckboxGroup';
 import { GradeImpacto } from './components/GradeImpacto';
 import { UploadAnexos } from './components/UploadAnexos';
+import { ListaRepetivel } from './components/ListaRepetivel';
+import { EconomiaDetalhe } from './components/EconomiaDetalhe';
 import { EIXOS_ESTRATEGICOS, ODS } from './data/eixos';
 import { GRADE_SOCIAL, GRADE_AMBIENTAL } from './data/grades';
 import { enviarRelatorio, AnexoPayload, RespostaEnvio } from './lib/api';
@@ -34,7 +36,7 @@ const ROTULOS: Record<string, string> = {
   diretoria_departamento: 'diretoria e departamento', programa_projeto: 'programa/projeto',
   coordenacao_equipe: 'coordenação e equipe', eixos: 'eixos estratégicos', ods: 'ODS',
   resumo: 'resumo descritivo', abrangencia_geografica: 'abrangência geográfica',
-  parcerias_confirmado: 'confirmação de parcerias', impactos_gerais: 'impactos gerais',
+  parcerias: 'parcerias', econ_detalhe: 'impactos econômicos detalhados', impactos_gerais: 'impactos gerais',
   econ_produtividade: 'incremento de produtividade', econ_reducao_custos: 'redução de custos',
   econ_expansao_area: 'expansão de área', econ_agregacao_valor: 'agregação de valor',
   econ_memoria_calculo: 'memória de cálculo', econ_fontes: 'fontes de dados',
@@ -62,11 +64,6 @@ export function App() {
   const [resultado, setResultado] = useState<RespostaEnvio | null>(null);
 
   async function aoEnviar(dados: Relatorio) {
-    if (!anexos.some((a) => a.tipo === 'planilha_complementar')) {
-      setResultado({ ok: false, erro: 'anexe a planilha complementar preenchida (.xlsx).' });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
     setEnviando(true);
     setResultado(null);
     try {
@@ -137,10 +134,11 @@ export function App() {
           <ImpactosEconomicos />
           <ImpactosSociais />
           <ImpactosAmbientais />
+          <PlanilhaComplementar />
           <Publicacoes />
 
           <section className="cartao">
-            <h2>5. Anexos</h2>
+            <h2>6. Anexos (fotos e documentos)</h2>
             <UploadAnexos onChange={setAnexos} />
           </section>
 
@@ -158,8 +156,9 @@ export function App() {
 function RecursosDownload() {
   return (
     <div className="recursos">
-      <strong>Antes de começar:</strong> baixe a planilha complementar, preencha-a
-      (abas de parcerias e impactos econômicos) e anexe-a ao final.
+      <strong>Os dados de parcerias e impactos econômicos são preenchidos direto
+      neste formulário</strong> (seção 4). A planilha complementar e as
+      orientações ficam disponíveis abaixo apenas para consulta/referência.
       <div className="recursos-links">
         <a className="recurso-link" href={URL_PLANILHA} download>
           ⬇ Baixar planilha complementar (.xlsx)
@@ -230,18 +229,9 @@ function DescricaoTecnica() {
       <Field label="Abrangência geográfica" obrigatorio erro={errors.abrangencia_geografica?.message}>
         <textarea rows={3} {...register('abrangencia_geografica')} />
       </Field>
-      <div className="aviso-confirma">
-        <label>
-          <input type="checkbox" {...register('parcerias_confirmado')} />
-          <span>
-            Preenchi a aba <strong>"Parcerias"</strong> da{' '}
-            <a href={URL_PLANILHA} download>planilha complementar</a> e a anexarei ao final.
-          </span>
-        </label>
-        {errors.parcerias_confirmado && (
-          <div className="erro-msg">{errors.parcerias_confirmado.message as string}</div>
-        )}
-      </div>
+      <p className="campo-ajuda">
+        As parcerias e cooperações são informadas na <strong>seção 4</strong> deste formulário.
+      </p>
     </section>
   );
 }
@@ -346,11 +336,54 @@ function ImpactosAmbientais() {
   );
 }
 
+function PlanilhaComplementar() {
+  const { control, register, formState: { errors } } = useFormContext<RelatorioInput>();
+  return (
+    <section className="cartao">
+      <h2>4. Planilha complementar — parcerias e impactos econômicos detalhados</h2>
+      <p className="campo-ajuda">
+        Preenchimento opcional, mas recomendado: substitui o trabalho manual na
+        planilha .xlsx. Informe apenas o que se aplica à ação/tecnologia.
+      </p>
+
+      <h3>Parcerias e cooperações</h3>
+      <ListaRepetivel<RelatorioInput>
+        control={control}
+        name="parcerias"
+        itemPadrao={{ instituicao: '', funcao: '' }}
+        textoAdicionar="+ Adicionar parceria"
+        vazio="Nenhuma parceria informada (clique abaixo para adicionar)."
+        renderItem={(i) => (
+          <div className="grid">
+            <Field label="Instituição" obrigatorio erro={errors.parcerias?.[i]?.instituicao?.message}>
+              <input {...register(`parcerias.${i}.instituicao` as const)} />
+            </Field>
+            <Field label="Função da entidade na parceria">
+              <input {...register(`parcerias.${i}.funcao` as const)} />
+            </Field>
+            <Field label="Valor investido pela entidade parceira (R$)">
+              <input type="number" step="any" min={0} {...register(`parcerias.${i}.valor_investido` as const, { valueAsNumber: true })} />
+            </Field>
+            <Field label="Participação no impacto observado (%)" erro={errors.parcerias?.[i]?.participacao_pct?.message}>
+              <input type="number" step="any" min={0} max={100} {...register(`parcerias.${i}.participacao_pct` as const, { valueAsNumber: true })} />
+            </Field>
+          </div>
+        )}
+      />
+
+      <hr style={{ margin: '20px 0', border: 0, borderTop: '1px solid #eee' }} />
+
+      <h3>Impactos econômicos detalhados</h3>
+      <EconomiaDetalhe />
+    </section>
+  );
+}
+
 function Publicacoes() {
   const { register, formState: { errors } } = useFormContext<RelatorioInput>();
   return (
     <section className="cartao">
-      <h2>4. Publicações e matérias</h2>
+      <h2>5. Publicações e matérias</h2>
       <Field label="Publicações e matérias (opcional)" erro={errors.publicacoes?.message}>
         <textarea rows={3} {...register('publicacoes')} />
       </Field>
