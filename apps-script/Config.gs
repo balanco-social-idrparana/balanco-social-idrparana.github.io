@@ -1,0 +1,40 @@
+/**
+ * Configuração — lê todos os segredos do PropertiesService.
+ * NÃO coloque IDs ou chaves neste arquivo: ele é versionado.
+ *
+ * Definir em: Project Settings → Script Properties
+ *   SHEET_ID            ID da planilha (banco)
+ *   DRIVE_FOLDER_ID     Pasta-raiz dos anexos
+ *   BACKUP_FOLDER_ID    Pasta de backups semanais
+ *   RECAPTCHA_SECRET    Chave secreta do reCAPTCHA v3
+ *   ALLOWED_ORIGIN      https://balanco-social-idrparana.github.io
+ *   IP_HASH_SALT        Sal aleatório p/ hashear IPs no log de auditoria
+ *   ADMIN_NOTIFY_EMAIL  (opcional) E-mail institucional p/ alertas
+ */
+
+function cfg(key) {
+  var v = PropertiesService.getScriptProperties().getProperty(key);
+  if (!v) throw new Error('Configuração ausente: ' + key);
+  return v;
+}
+
+function cfgOpt(key) {
+  return PropertiesService.getScriptProperties().getProperty(key) || null;
+}
+
+// Limites — podem virar Script Properties se precisar ajustar sem deploy.
+var LIMITS = {
+  MAX_FILE_BYTES: 10 * 1024 * 1024,       // 10 MB por anexo (fotos/planilha)
+  MAX_TOTAL_BYTES: 50 * 1024 * 1024,      // 50 MB no envio inteiro
+  RATE_PER_EMAIL_SECONDS: 300,            // 1 envio por e-mail a cada 5 min
+  RATE_PER_IP_HOURLY: 20,                 // 20 envios por IP por hora
+  RECAPTCHA_MIN_SCORE: 0.5,
+  CACHE_GET_SECONDS: 300,
+  ALLOWED_MIME: [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel'                                           // .xls
+  ]
+};

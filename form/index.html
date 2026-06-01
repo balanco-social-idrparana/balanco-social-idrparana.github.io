@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta property="og:title" content="Relatório de Impactos — Balanço Social IDR-Paraná 2025" />
+    <meta property="og:description" content="Coleta de impactos econômicos, sociais e ambientais das ações e tecnologias do IDR-Paraná (metodologia Ambitec-Agro)." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <!--
+      CSP estrita. connect-src permite o Apps Script. script-src libera reCAPTCHA.
+      Sem inline scripts (Vite extrai tudo); style-src 'unsafe-inline' para estilos do reCAPTCHA.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/;
+      frame-src https://www.google.com/recaptcha/;
+      connect-src 'self' https://script.google.com https://script.googleusercontent.com;
+      img-src 'self' data:;
+      style-src 'self' 'unsafe-inline';
+      font-src 'self' data:;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    " />
+    <title>Relatório de Impactos — Balanço Social IDR-Paraná 2025</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

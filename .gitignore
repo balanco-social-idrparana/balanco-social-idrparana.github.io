@@ -1,0 +1,68 @@
+# ─── Documentos com dados reais / referência (NÃO versionar) ────────────────
+# Artefatos de trabalho com dados de referência ficam fora do Git por padrão.
+# EXCEÇÃO: arquivos em form/public/ DEVEM ser versionados (planilha
+# complementar e orientações servidas junto com o formulário). As regras de
+# negação ao final desta seção reabrem esse diretório.
+*.xlsx
+*.xls
+*.doc
+*.docx
+*.pdf
+*.ppt
+*.pptx
+links*.txt
+prompt.txt
+
+# Reabrir form/public/ para versionamento (sobrepõe os ignores acima).
+!form/public/
+!form/public/**
+!form/public/*.pdf
+!form/public/*.xlsx
+
+# ─── Apps Script (segredos e IDs de planilha/drive) ─────────────────────────
+apps-script/.clasp.json
+apps-script/.clasprc.json
+apps-script/Config.local.gs
+apps-script/secrets.gs
+**/*.local.gs
+
+# ─── Variáveis de ambiente ──────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+form/.env*
+!form/.env.example
+
+# ─── Node / build ───────────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.cache/
+
+# ─── Testes / cobertura ─────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Logs ───────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── IDE / OS ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Backups locais ─────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*~

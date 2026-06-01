@@ -1,0 +1,93 @@
+:root {
+  --cor-primaria: #1f6feb;
+  --cor-primaria-escura: #1a5fcc;
+  --cor-erro: #c0392b;
+  --cor-borda: #d0d7de;
+  --cor-fundo: #f6f8fa;
+  --cor-texto: #1f2328;
+  --cor-texto-suave: #57606a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--cor-texto);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cor-fundo); }
+
+.container { max-width: 920px; margin: 0 auto; padding: 24px 16px 80px; }
+.cabecalho { padding: 16px 0 24px; border-bottom: 1px solid var(--cor-borda); margin-bottom: 24px; }
+.cabecalho h1 { margin: 0 0 6px; font-size: 1.5rem; }
+.cabecalho p { margin: 0; color: var(--cor-texto-suave); }
+
+.cartao { background: #fff; border: 1px solid var(--cor-borda); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+.cartao h2 { margin: 0 0 16px; font-size: 1.15rem; color: var(--cor-primaria); }
+.cartao h3 { margin: 18px 0 8px; font-size: 1rem; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.campo { margin-bottom: 14px; }
+.campo:last-child { margin-bottom: 0; }
+.campo-ajuda { margin: 0 0 6px; font-size: 0.8rem; color: var(--cor-texto-suave); }
+
+label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 4px; }
+.obrigatorio::after { content: ' *'; color: var(--cor-erro); }
+
+input, select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--cor-borda); border-radius: 6px;
+  font-size: 0.95rem; background: #fff; font-family: inherit;
+}
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--cor-primaria); outline-offset: -1px; }
+.erro-msg { color: var(--cor-erro); font-size: 0.8rem; margin-top: 4px; }
+
+button {
+  background: var(--cor-primaria); color: #fff; border: 0; padding: 10px 18px;
+  border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.95rem; font-family: inherit;
+}
+button:hover:not(:disabled) { background: var(--cor-primaria-escura); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.remover { background: #fff; color: var(--cor-erro); border: 1px solid var(--cor-erro); padding: 3px 10px; font-size: 0.8rem; }
+
+.honeypot { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
+.barra-acoes { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+
+.resultado-ok { background: #e6f4ea; border: 1px solid #2e6e3a; padding: 16px; border-radius: 6px; margin-bottom: 20px; }
+.resultado-erro { background: #fdecea; border: 1px solid var(--cor-erro); padding: 16px; border-radius: 6px; margin-bottom: 20px; }
+
+/* ─── Recursos para download ─────────────────────────────────────────────── */
+.recursos { background: #eef4ff; border: 1px solid #b6d0ff; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 0.92rem; }
+.recursos-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.recurso-link {
+  display: inline-block; padding: 8px 14px; background: #fff; border: 1px solid var(--cor-primaria);
+  border-radius: 6px; color: var(--cor-primaria); text-decoration: none; font-weight: 600; font-size: 0.9rem;
+}
+.recurso-link:hover { background: var(--cor-primaria); color: #fff; }
+
+/* ─── Checkboxes (eixos / ODS) ───────────────────────────────────────────── */
+.checkbox-grupo { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px 16px; }
+.checkbox-grupo.coluna { grid-template-columns: 1fr; }
+.checkbox-item { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin: 0; cursor: pointer; }
+.checkbox-item input { width: auto; margin-top: 3px; }
+
+/* ─── Confirmação (parcerias) ────────────────────────────────────────────── */
+.aviso-confirma { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 12px 14px; }
+.aviso-confirma label { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+.aviso-confirma input { width: auto; margin-top: 3px; }
+
+/* ─── Grades de impacto (Ambitec) ────────────────────────────────────────── */
+.aspecto { padding: 12px 0; border-top: 1px solid #eef0f2; }
+.aspecto:first-of-type { border-top: 0; }
+.grade-legenda { font-size: 0.8rem; color: var(--cor-texto-suave); background: #f6f8fa; padding: 8px 10px; border-radius: 6px; }
+.grade-legenda strong { white-space: nowrap; }
+.grade-wrap { overflow-x: auto; margin-top: 6px; }
+.grade { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.grade th, .grade td { border: 1px solid var(--cor-borda); padding: 6px 8px; text-align: center; }
+.grade thead th { background: #f6f8fa; font-weight: 600; }
+.grade th.grade-coef { text-align: left; font-weight: 500; min-width: 200px; }
+.grade td.grade-val, .grade th.grade-val { width: 70px; }
+.grade td.grade-val input { width: auto; cursor: pointer; }
+.grade tbody tr:hover { background: #f0f6ff; }
+
+/* ─── Anexos ─────────────────────────────────────────────────────────────── */
+.anexo-ok { color: #2e6e3a; font-size: 0.85rem; margin-top: 6px; }
+.anexo-lista { list-style: none; margin: 8px 0 0; padding: 0; }
+.anexo-lista li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; font-size: 0.88rem; }
