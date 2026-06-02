@@ -198,22 +198,29 @@ function Identificacao() {
         </Field>
       </div>
       <Field label="Título da ação ou tecnologia" obrigatorio
-        ajuda="Um formulário para cada ação ou tecnologia." erro={errors.titulo?.message}>
+        ajuda="Informe o nome ou título da ação ou tecnologia selecionada. Atenção: preencha um formulário para cada ação ou tecnologia."
+        erro={errors.titulo?.message}>
         <input {...register('titulo')} />
       </Field>
       <div className="grid">
-        <Field label="Diretoria e departamento" obrigatorio erro={errors.diretoria_departamento?.message}>
+        <Field label="Diretoria e departamento" obrigatorio
+          ajuda="Informe a Diretoria e o departamento a que a ação ou tecnologia está diretamente relacionada."
+          erro={errors.diretoria_departamento?.message}>
           <input {...register('diretoria_departamento')} />
         </Field>
-        <Field label="Programa/projeto" obrigatorio erro={errors.programa_projeto?.message}>
+        <Field label="Programa/projeto" obrigatorio
+          ajuda="Informe o programa e/ou projeto a que a ação ou tecnologia está vinculada."
+          erro={errors.programa_projeto?.message}>
           <input {...register('programa_projeto')} />
         </Field>
       </div>
       <Field label="Coordenação/responsável e equipe" obrigatorio
-        ajuda="Coordenador(a) e lista da equipe participante." erro={errors.coordenacao_equipe?.message}>
+        ajuda="Informe o coordenador e/ou responsável pela ação/tecnologia e pelo relatório, e a lista da equipe participante."
+        erro={errors.coordenacao_equipe?.message}>
         <textarea rows={3} {...register('coordenacao_equipe')} />
       </Field>
-      <Field label="Ano de desenvolvimento da tecnologia" ajuda="Se for uma tecnologia, ano de lançamento/início da transferência."
+      <Field label="Ano de desenvolvimento da tecnologia"
+        ajuda="No caso de uma tecnologia, informe o ano de lançamento e quando começou a ser transferida."
         erro={errors.ano_tecnologia?.message}>
         <input {...register('ano_tecnologia')} />
       </Field>
@@ -227,19 +234,23 @@ function DescricaoTecnica() {
     <section className="cartao">
       <h2>2. Descrição técnica e contextualização</h2>
       <Field label="Conexão com eixos estratégicos" obrigatorio
-        ajuda="A qual(is) eixo(s) estratégico(s) do IDR-Paraná a ação se relaciona."
+        ajuda="Indique a qual(is) eixo(s) estratégico(s) do IDR-Paraná se relaciona a ação ou tecnologia avaliada."
         erro={errors.eixos?.message as string | undefined}>
         <CheckboxGroup<RelatorioInput> name="eixos" opcoes={EIXOS_ESTRATEGICOS} />
       </Field>
       <Field label="Conexão com Objetivos de Desenvolvimento Sustentável (ODS)" obrigatorio
-        ajuda="A qual(is) ODS da ONU a ação se relaciona."
+        ajuda="Indique a qual(is) ODS da ONU se relaciona a ação ou tecnologia avaliada."
         erro={errors.ods?.message as string | undefined}>
         <CheckboxGroup<RelatorioInput> name="ods" opcoes={ODS} colunaUnica />
       </Field>
-      <Field label="Resumo descritivo" obrigatorio erro={errors.resumo?.message}>
-        <textarea rows={4} {...register('resumo')} />
+      <Field label="Resumo descritivo" obrigatorio
+        ajuda="Destaque as principais características da ação/tecnologia e suas vantagens em relação à situação anterior, com breve comparação de aspectos positivos e eventuais restrições. Sugestão: histórico, grau de aceitação dos agricultores, evolução das áreas de adoção e regiões. Use linguagem clara, voltada ao público geral. Máx. 3.000 caracteres."
+        erro={errors.resumo?.message}>
+        <textarea rows={5} {...register('resumo')} />
       </Field>
-      <Field label="Abrangência geográfica" obrigatorio erro={errors.abrangencia_geografica?.message}>
+      <Field label="Abrangência geográfica" obrigatorio
+        ajuda="Indique as regiões do Paraná, de outros estados/regiões do Brasil ou outros países onde a ação/tecnologia é adotada ou tem repercussão. Se possível, informe a área estimada (ha) e/ou outra medida de adoção."
+        erro={errors.abrangencia_geografica?.message}>
         <textarea rows={3} {...register('abrangencia_geografica')} />
       </Field>
       <p className="campo-ajuda">
@@ -254,7 +265,9 @@ function ImpactosGerais() {
   return (
     <section className="cartao">
       <h2>3. Impactos gerais</h2>
-      <Field label="Impactos gerais na cadeia produtiva ou área" obrigatorio erro={errors.impactos_gerais?.message}>
+      <Field label="Impactos gerais na cadeia produtiva ou área" obrigatorio
+        ajuda="Identifique os principais impactos da ação/tecnologia na respectiva cadeia produtiva e/ou área de atuação, considerando seus principais segmentos (produtores de insumos, produtores rurais, processamento, distribuição e consumo)."
+        erro={errors.impactos_gerais?.message}>
         <textarea rows={4} {...register('impactos_gerais')} />
       </Field>
     </section>
@@ -264,21 +277,26 @@ function ImpactosGerais() {
 function ImpactosEconomicos() {
   const { register, formState: { errors } } = useFormContext<RelatorioInput>();
   const campo = (
-    name: keyof RelatorioInput, label: string
+    name: keyof RelatorioInput, label: string, ajuda?: string
   ) => (
-    <Field label={label} obrigatorio erro={errors[name]?.message as string | undefined}>
+    <Field label={label} obrigatorio ajuda={ajuda} erro={errors[name]?.message as string | undefined}>
       <textarea rows={3} {...register(name)} />
     </Field>
   );
   return (
     <section className="cartao">
       <h2>3.2. Avaliação dos impactos econômicos</h2>
-      {campo('econ_produtividade', 'Incremento de Produtividade')}
-      {campo('econ_reducao_custos', 'Redução de Custos')}
-      {campo('econ_expansao_area', 'Expansão da Produção em Novas Áreas')}
-      {campo('econ_agregacao_valor', 'Agregação de Valor')}
-      {campo('econ_memoria_calculo', 'Memória de cálculo')}
-      {campo('econ_fontes', 'Fontes de dados')}
+      <p className="campo-ajuda">
+        Comente os impactos econômicos da ação/tecnologia comparativamente à tecnologia
+        adotada anteriormente. Cite o montante estimado e, sobretudo, o papel do IDR-Paraná
+        na geração dos impactos. Os valores numéricos correspondentes são informados na seção 4.
+      </p>
+      {campo('econ_produtividade', 'Incremento de Produtividade', 'Comente os impactos econômicos em relação ao incremento de produtividade. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_reducao_custos', 'Redução de Custos', 'Comente os impactos econômicos em relação à redução de custos. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_expansao_area', 'Expansão da Produção em Novas Áreas', 'Comente os impactos econômicos em relação à expansão da produção em novas áreas. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_agregacao_valor', 'Agregação de Valor', 'Comente os impactos econômicos em relação à agregação de valor. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_memoria_calculo', 'Memória de cálculo', 'Demonstre como os impactos econômicos foram estimados (metodologia do excedente econômico), comparando com a tecnologia anterior, e explique como foram obtidos os números informados na seção 4. Máx. 3.000 caracteres.')}
+      {campo('econ_fontes', 'Fontes de dados', 'Informe as fontes dos dados e o procedimento de coleta (entrevistas a produtores, levantamentos da equipe ou de outras instituições, cooperativas etc.). Se consultou usuários, informe o nº de entrevistas e o perfil.')}
     </section>
   );
 }
@@ -288,9 +306,15 @@ function ImpactosSociais() {
   return (
     <section className="cartao">
       <h2>3.3. Avaliação dos impactos sociais</h2>
+      <p className="campo-ajuda">
+        Descreva os impactos sociais (direção: positivo, negativo ou neutro). Os indicadores
+        são do Sistema <strong>Ambitec-Social</strong> (Embrapa): para cada coeficiente, indique
+        a direção e, se houver variação, a intensidade.
+      </p>
       <p className="grade-legenda">
-        Escala: <strong>-3</strong> grande redução · <strong>-1</strong> redução ·
-        <strong> 0</strong> neutro · <strong>+1</strong> aumento · <strong>+3</strong> grande aumento ·
+        Em cada grade, por indicador: <strong>-3</strong> grande diminuição ·
+        <strong>-1</strong> moderada diminuição · <strong> 0</strong> sem alteração ·
+        <strong>+1</strong> moderado aumento · <strong>+3</strong> grande aumento ·
         <strong> Não se aplica</strong>.
       </p>
       {GRADE_SOCIAL.map((grupo) => {
@@ -299,6 +323,7 @@ function ImpactosSociais() {
           <div key={grupo.aspecto} className="aspecto">
             <h3>{grupo.titulo}</h3>
             <Field label={`${grupo.titulo} — descrição/justificativa`} obrigatorio
+              ajuda={`Descreva de forma sucinta o impacto da ação ou tecnologia no aspecto ${grupo.titulo}. Se não tiver relação, escreva "Não se aplica".`}
               erro={errors[descName]?.message as string | undefined}>
               <textarea rows={3} {...register(descName)} />
             </Field>
@@ -309,7 +334,9 @@ function ImpactosSociais() {
       {errors.grade_social && (
         <div className="erro-msg">{(errors.grade_social.message as string) || 'responda todos os itens das grades sociais.'}</div>
       )}
-      <Field label="Conclusão dos impactos sociais" obrigatorio erro={errors.social_conclusao?.message}>
+      <Field label="Conclusão dos impactos sociais" obrigatorio
+        ajuda='Com base nos impactos sociais acima, conclua se são positivos, negativos ou neutros, destacando os pontos que justificam a pontuação. Se não tiver relação, escreva "Não se aplica".'
+        erro={errors.social_conclusao?.message}>
         <textarea rows={3} {...register('social_conclusao')} />
       </Field>
     </section>
@@ -321,9 +348,15 @@ function ImpactosAmbientais() {
   return (
     <section className="cartao">
       <h2>3.4. Avaliação dos impactos ambientais</h2>
+      <p className="campo-ajuda">
+        Descreva os impactos ambientais (direção: positivo, negativo ou neutro). Os indicadores
+        são dos Sistemas <strong>Ambitec</strong> (Agricultura, Produção Animal e Agroindústria)
+        da Embrapa: para cada coeficiente, indique a direção e, se houver variação, a intensidade.
+      </p>
       <p className="grade-legenda">
-        Escala: <strong>-3</strong> grande redução · <strong>-1</strong> redução ·
-        <strong> 0</strong> neutro · <strong>+1</strong> aumento · <strong>+3</strong> grande aumento ·
+        Em cada grade, por indicador: <strong>-3</strong> grande diminuição ·
+        <strong>-1</strong> moderada diminuição · <strong> 0</strong> sem alteração ·
+        <strong>+1</strong> moderado aumento · <strong>+3</strong> grande aumento ·
         <strong> Não se aplica</strong>.
       </p>
       {GRADE_AMBIENTAL.map((grupo) => {
@@ -332,6 +365,7 @@ function ImpactosAmbientais() {
           <div key={grupo.aspecto} className="aspecto">
             <h3>{grupo.titulo}</h3>
             <Field label={`${grupo.titulo} — descrição/justificativa`} obrigatorio
+              ajuda={`Descreva de forma sucinta o impacto da ação ou tecnologia no aspecto ${grupo.titulo}. Se não tiver relação, escreva "Não se aplica".`}
               erro={errors[descName]?.message as string | undefined}>
               <textarea rows={3} {...register(descName)} />
             </Field>
@@ -342,7 +376,9 @@ function ImpactosAmbientais() {
       {errors.grade_ambiental && (
         <div className="erro-msg">{(errors.grade_ambiental.message as string) || 'responda todos os itens das grades ambientais.'}</div>
       )}
-      <Field label="Conclusão dos impactos ambientais" obrigatorio erro={errors.amb_conclusao?.message}>
+      <Field label="Conclusão dos impactos ambientais" obrigatorio
+        ajuda='Com base nos impactos ambientais acima, conclua se são positivos, negativos ou neutros, destacando os pontos que justificam a pontuação. Se não tiver relação, escreva "Não se aplica".'
+        erro={errors.amb_conclusao?.message}>
         <textarea rows={3} {...register('amb_conclusao')} />
       </Field>
     </section>
@@ -353,13 +389,17 @@ function PlanilhaComplementar() {
   const { control, register, formState: { errors } } = useFormContext<RelatorioInput>();
   return (
     <section className="cartao">
-      <h2>4. Planilha complementar — parcerias e impactos econômicos detalhados</h2>
+      <h2>4. Informações Complementares</h2>
       <p className="campo-ajuda">
-        Preenchimento opcional, mas recomendado: substitui o trabalho manual na
-        planilha .xlsx. Informe apenas o que se aplica à ação/tecnologia.
+        Parcerias e impactos econômicos detalhados. Preenchimento opcional, mas recomendado.
+        Informe apenas o que se aplica à ação/tecnologia.
       </p>
 
       <h3>Parcerias e cooperações</h3>
+      <p className="campo-ajuda">
+        Informe os parceiros e cooperadores na ação/tecnologia, citando as funções, os recursos
+        e a porcentagem de participação de cada um no impacto observado.
+      </p>
       <ListaRepetivel<RelatorioInput>
         control={control}
         name="parcerias"
@@ -397,7 +437,9 @@ function Publicacoes() {
   return (
     <section className="cartao">
       <h2>5. Publicações e matérias</h2>
-      <Field label="Publicações e matérias (opcional)" erro={errors.publicacoes?.message}>
+      <Field label="Publicações e matérias (opcional)"
+        ajuda="Liste as principais publicações técnico-científicas e matérias jornalísticas que tratam da ação/tecnologia. Insira os links."
+        erro={errors.publicacoes?.message}>
         <textarea rows={3} {...register('publicacoes')} />
       </Field>
     </section>

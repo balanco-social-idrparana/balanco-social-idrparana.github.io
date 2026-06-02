@@ -212,7 +212,7 @@ gravada na planilha; o título é o que aparece na seção. Fonte:
 - Resíduos químicos em produto agroindustrial ou na cadeia
 - Contaminantes biológicos em produto agroindustrial ou na cadeia
 
-## Seção 4 — Planilha complementar (parcerias + impactos econômicos)
+## Seção 4 — Informações Complementares (parcerias + impactos econômicos)
 
 Esta seção **incorpora no formulário** os dados que antes eram preenchidos na
 planilha `.xlsx` complementar. Todo o preenchimento é **opcional** (informe o que
