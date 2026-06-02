@@ -122,6 +122,9 @@ button.remover:hover:not(:disabled) { background: #fdecea; }
 .grade td.grade-val, .grade th.grade-val { width: 70px; }
 .grade td.grade-val input { width: auto; cursor: pointer; accent-color: var(--cor-primaria); }
 .grade tbody tr:hover { background: #f1f7f3; }
+.link-doc { margin: 8px 0 0; font-size: 0.84rem; }
+.link-doc a { color: var(--cor-primaria); text-decoration: none; }
+.link-doc a:hover { text-decoration: underline; }
 
 /* ─── Listas repetíveis (parcerias) ──────────────────────────────────────── */
 button.secundario { background: #fff; color: var(--cor-primaria); border: 1px solid var(--cor-primaria); box-shadow: none; }

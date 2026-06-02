@@ -9,7 +9,7 @@ import { UploadAnexos } from './components/UploadAnexos';
 import { ListaRepetivel } from './components/ListaRepetivel';
 import { EconomiaDetalhe } from './components/EconomiaDetalhe';
 import { EIXOS_ESTRATEGICOS, ODS } from './data/eixos';
-import { GRADE_SOCIAL, GRADE_AMBIENTAL } from './data/grades';
+import { GRADE_SOCIAL, GRADE_AMBIENTAL, URL_INDICADORES, DOC_INDICADOR } from './data/grades';
 import { enviarRelatorio, AnexoPayload, RespostaEnvio } from './lib/api';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -309,7 +309,8 @@ function ImpactosSociais() {
       <p className="campo-ajuda">
         Descreva os impactos sociais (direção: positivo, negativo ou neutro). Os indicadores
         são do Sistema <strong>Ambitec-Social</strong> (Embrapa): para cada coeficiente, indique
-        a direção e, se houver variação, a intensidade.
+        a direção e, se houver variação, a intensidade. Veja o documento{' '}
+        <a href={URL_INDICADORES} target="_blank" rel="noreferrer">Indicadores Sociais e Ambientais</a>.
       </p>
       <p className="grade-legenda">
         Em cada grade, por indicador: <strong>-3</strong> grande diminuição ·
@@ -328,6 +329,13 @@ function ImpactosSociais() {
               <textarea rows={3} {...register(descName)} />
             </Field>
             <GradeImpacto<RelatorioInput> name="grade_social" grupo={grupo} />
+            {DOC_INDICADOR[grupo.aspecto] && (
+              <p className="link-doc">
+                <a href={DOC_INDICADOR[grupo.aspecto]} target="_blank" rel="noreferrer">
+                  📄 Descrições dos indicadores — {grupo.titulo}
+                </a>
+              </p>
+            )}
           </div>
         );
       })}
@@ -352,6 +360,8 @@ function ImpactosAmbientais() {
         Descreva os impactos ambientais (direção: positivo, negativo ou neutro). Os indicadores
         são dos Sistemas <strong>Ambitec</strong> (Agricultura, Produção Animal e Agroindústria)
         da Embrapa: para cada coeficiente, indique a direção e, se houver variação, a intensidade.
+        Veja o documento{' '}
+        <a href={URL_INDICADORES} target="_blank" rel="noreferrer">Indicadores Sociais e Ambientais</a>.
       </p>
       <p className="grade-legenda">
         Em cada grade, por indicador: <strong>-3</strong> grande diminuição ·
@@ -370,6 +380,13 @@ function ImpactosAmbientais() {
               <textarea rows={3} {...register(descName)} />
             </Field>
             <GradeImpacto<RelatorioInput> name="grade_ambiental" grupo={grupo} />
+            {DOC_INDICADOR[grupo.aspecto] && (
+              <p className="link-doc">
+                <a href={DOC_INDICADOR[grupo.aspecto]} target="_blank" rel="noreferrer">
+                  📄 Descrições dos indicadores — {grupo.titulo}
+                </a>
+              </p>
+            )}
           </div>
         );
       })}

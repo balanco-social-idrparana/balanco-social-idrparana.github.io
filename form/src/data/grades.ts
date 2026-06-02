@@ -137,3 +137,23 @@ export const TODAS_GRADES: { dimensao: 'social' | 'ambiental'; grupo: GrupoGrade
 /** Número total de coeficientes esperados por dimensão (para validação). */
 export const TOTAL_COEF_SOCIAL = GRADE_SOCIAL.reduce((n, g) => n + g.coeficientes.length, 0);
 export const TOTAL_COEF_AMBIENTAL = GRADE_AMBIENTAL.reduce((n, g) => n + g.coeficientes.length, 0);
+
+// Links de apoio (mesmos do Google Form original): documentos com a descrição
+// dos indicadores de cada aspecto + documento geral de indicadores.
+const driveDoc = (id: string) => `https://drive.google.com/file/d/${id}/view`;
+
+/** Documento geral "Indicadores Sociais e Ambientais". */
+export const URL_INDICADORES = driveDoc('1GYvQyi3vtSqttyMt2m-2yrWj1daSvk42');
+
+/** Documento com a descrição dos indicadores de cada aspecto (por chave). */
+export const DOC_INDICADOR: Record<string, string> = {
+  emprego: driveDoc('1VLVqd8VJnYmkq5ALWpI9PwZB2zXnZp6f'),
+  renda: driveDoc('1LNjirpQjI0WnWup5Zen5_pg2xOsRDyhf'),
+  bemestar: driveDoc('1s-a274uYdZeDUw_fgSdgH7rf_XXcPttU'),
+  gestao: driveDoc('1kK6I2Byw3cXR1ua72AOrcdTwpVFISxyj'),
+  eficiencia: driveDoc('1GEY8B9oEJhKYmrDBi3z_VsLy1gTj-1qu'),
+  conservacao: driveDoc('17N1Kiyh9vwrG2KNkDLtnkIAz-Hx6NAwf'),
+  recuperacao: driveDoc('1WhpaCjb42g70q0tfxBBI63wsvawwXgi0'),
+  bemestar_animal: driveDoc('1Gb3PBq0HyGEGmqGwkcZO-wYDGM8e0IRb'),
+  qualidade_produto: driveDoc('1Nsa6781esaFpD-yRDfrlK9r5Fhd0r2cr'),
+};
