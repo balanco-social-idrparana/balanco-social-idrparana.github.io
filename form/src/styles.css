@@ -38,6 +38,13 @@ body { margin: 0; background: var(--cor-fundo); line-height: 1.6; }
 .container { max-width: 960px; margin: 0 auto; padding: 28px 16px 90px; }
 
 .cabecalho { padding: 8px 0 24px; margin-bottom: 24px; border-bottom: 1px solid var(--cor-borda); }
+.cabecalho .voltar {
+  display: inline-flex; align-items: center; gap: 4px; margin-bottom: 14px;
+  color: var(--cor-primaria); text-decoration: none; font-size: 0.86rem; font-weight: 600;
+  border: 1px solid var(--cor-borda); border-radius: 999px; padding: 5px 14px; background: #fff;
+  transition: background .12s, border-color .12s;
+}
+.cabecalho .voltar:hover { background: #e7f3ec; border-color: var(--cor-primaria); }
 .cabecalho .selo { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: .08em;
   text-transform: uppercase; color: var(--cor-primaria); background: #e7f3ec;
   padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; }

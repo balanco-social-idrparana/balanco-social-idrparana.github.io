@@ -103,6 +103,7 @@ export function App() {
 
       <div className="container">
         <header className="cabecalho">
+          <a className="voltar" href="../">← Voltar à página inicial</a>
           <span className="selo">Balanço Social 2025</span>
           <h1>Relatório de Impactos de Ações e Tecnologias</h1>
           <p>
