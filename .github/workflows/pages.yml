@@ -44,7 +44,7 @@ jobs:
         run: |
           mkdir -p site/form
           cp -r form/dist/* site/form/
-          cp landing/index.html site/index.html
+          cp -r landing/* site/
 
       - uses: actions/upload-pages-artifact@v5
         with:

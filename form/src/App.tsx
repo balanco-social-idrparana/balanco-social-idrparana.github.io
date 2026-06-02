@@ -94,12 +94,21 @@ export function App() {
 
   return (
     <FormProvider {...metodos}>
+      <div className="marca-topo">
+        <div className="marca-inner">
+          <img src={`${BASE}idr-gov-seab-h.webp`} alt="IDR-Paraná · Governo do Estado do Paraná · Secretaria da Agricultura e do Abastecimento" />
+        </div>
+      </div>
+      <div className="faixa-acento" />
+
       <div className="container">
         <header className="cabecalho">
-          <h1>Relatório de Impactos — Balanço Social 2025</h1>
+          <span className="selo">Balanço Social 2025</span>
+          <h1>Relatório de Impactos de Ações e Tecnologias</h1>
           <p>
-            IDR-Paraná. Preencha <strong>um formulário por ação ou tecnologia</strong>,
-            com os impactos econômicos, sociais e ambientais (metodologia Ambitec-Agro).
+            Preencha <strong>um formulário por ação ou tecnologia</strong> — impactos
+            econômicos, sociais e ambientais pela metodologia Ambitec-Agro.{' '}
+            <a href="../">Ver instruções</a>.
           </p>
         </header>
 
@@ -148,6 +157,13 @@ export function App() {
           </div>
         </form>
       </div>
+
+      <footer className="rodape-inst">
+        <img src={`${BASE}idr-gov-seab-h.webp`} alt="" />
+        <p><strong>IDR-Paraná</strong> — Instituto de Desenvolvimento Rural do Paraná (IAPAR-EMATER)</p>
+        <p>Secretaria da Agricultura e do Abastecimento · Governo do Estado do Paraná</p>
+        <p>Grupo Gestor do Balanço Social 2025</p>
+      </footer>
     </FormProvider>
   );
 }
