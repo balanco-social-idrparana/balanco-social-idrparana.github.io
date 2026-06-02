@@ -71,8 +71,7 @@ export function EconomiaDetalhe() {
   return (
     <div>
       <p className="campo-ajuda">
-        Preencha apenas os blocos que se aplicam à ação/tecnologia. Os campos
-        <em> calculados</em> são preenchidos automaticamente (mesmas fórmulas da planilha).
+        Os campos <em>calculados</em> são preenchidos automaticamente (mesmas fórmulas da planilha).
       </p>
       {BLOCOS_ECON.map((b) => <BlocoCalc key={b.tipo} bloco={b} />)}
       <div className="total-beneficio">

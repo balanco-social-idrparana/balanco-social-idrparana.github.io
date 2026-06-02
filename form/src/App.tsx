@@ -408,8 +408,7 @@ function PlanilhaComplementar() {
     <section className="cartao">
       <h2>4. Informações Complementares</h2>
       <p className="campo-ajuda">
-        Parcerias e impactos econômicos detalhados. Preenchimento opcional, mas recomendado.
-        Informe apenas o que se aplica à ação/tecnologia.
+        Parcerias e impactos econômicos detalhados. Preencha apenas os blocos que se aplicam à ação/tecnologia.
       </p>
 
       <h3>Parcerias e cooperações</h3>
