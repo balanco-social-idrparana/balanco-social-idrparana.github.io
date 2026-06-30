@@ -47,3 +47,15 @@ function configurarRecursos() {
   Logger.log('OK. Defina RECAPTCHA_SECRET (se ainda não fez) e publique/atualize o app da Web.');
   return 'configurado';
 }
+
+// Utilitário one-off: remove TODAS as linhas de dados (mantém cabeçalhos).
+function limparDadosDeTeste() {
+  var ss = SpreadsheetApp.openById(cfg("SHEET_ID"));
+  var abas = ["relatorios","eixos","ods","grade_social","grade_ambiental","parcerias","econ_detalhe","anexos","_log"];
+  abas.forEach(function (n) {
+    var a = ss.getSheetByName(n); if (!a) return;
+    var last = a.getLastRow(); if (last > 1) a.deleteRows(2, last - 1);
+  });
+  try { CacheService.getScriptCache().remove("publico:resumo"); } catch (e) {}
+  return "limpo";
+}
