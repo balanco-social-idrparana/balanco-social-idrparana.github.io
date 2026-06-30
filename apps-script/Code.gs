@@ -39,8 +39,13 @@ function doPost(e) {
       return resposta(403, { erro: 'origem não permitida' });
     }
 
-    // 2. Honeypot — qualquer valor no campo invisível derruba a requisição.
-    if (corpo.website_url) {
+    // 2. Honeypot — campo oculto que humanos não preenchem. NÃO usar nomes que o
+    //    autofill do navegador reconheça: "website_url" era autopreenchido por
+    //    gerenciadores de senha/navegador e derrubava envios LEGÍTIMOS. O campo
+    //    atual ('hp_token') tem nome neutro que o autofill ignora. O 'website_url'
+    //    é deliberadamente NÃO checado (frontends antigos em cache podem enviá-lo
+    //    autopreenchido — não devem ser bloqueados por isso).
+    if (corpo.hp_token) {
       registrarLogSeguro(ipHash, corpo.origin, 'honeypot', '', '');
       return resposta(400, { erro: 'requisição inválida' });
     }

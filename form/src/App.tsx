@@ -186,11 +186,14 @@ export function App() {
         )}
 
         <form onSubmit={metodos.handleSubmit(aoEnviar, aoErroValidacao)} noValidate>
-          {/* Honeypot anti-bot — usuários reais não veem este campo */}
+          {/* Honeypot anti-bot — usuários reais não veem este campo. Nome NEUTRO
+              + atributos para impedir autofill de navegador/gerenciador de senha
+              (autofill em "website_url" derrubava envios legítimos). */}
           <input
             type="text" tabIndex={-1} autoComplete="off"
             className="honeypot" aria-hidden="true"
-            {...metodos.register('website_url')}
+            data-lpignore="true" data-form-type="other" data-1p-ignore=""
+            {...metodos.register('hp_token')}
           />
 
           <Identificacao />
