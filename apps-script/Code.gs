@@ -317,6 +317,119 @@ function doGet(e) {
   }
 }
 
+// ─── Utilitários de manutenção: duplicatas (executar NO EDITOR) ──────────────
+// Não são expostos na web. Duplicata = mais de um PROTOCOLO distinto com o MESMO
+// email+titulo (reenvios acidentais). Versões do mesmo protocolo NÃO são
+// duplicatas. A sugestão é sempre MANTER o protocolo de criação mais recente.
+
+function analisarDuplicatas() {
+  var ss = abrirPlanilha();
+  var aba = abaPorNome(ss, 'relatorios');
+  var dados = aba.getDataRange().getValues();
+  var C = {};
+  SCHEMA.relatorios.forEach(function (c, idx) { C[c] = idx; });
+
+  var porProtocolo = {};
+  for (var i = 1; i < dados.length; i++) {
+    var row = dados[i];
+    var protocolo = String(row[C.protocolo] || '');
+    if (!protocolo) continue;
+    var criado = row[C.criado_em];
+    var ms = (criado && criado.getTime) ? criado.getTime() : 0;
+    var p = porProtocolo[protocolo];
+    if (!p) {
+      p = porProtocolo[protocolo] = {
+        protocolo: protocolo, email: String(row[C.email] || ''),
+        responsavel: String(row[C.responsavel] || ''), titulo: String(row[C.titulo] || ''),
+        status: String(row[C.status] || ''), versoes: [], latestMs: 0
+      };
+    }
+    p.versoes.push(versaoEfetiva(row[C.versao]));
+    if (ms >= p.latestMs) { p.latestMs = ms; p.status = String(row[C.status] || ''); }
+  }
+
+  var grupos = {};
+  for (var pr in porProtocolo) {
+    var o = porProtocolo[pr];
+    var chave = o.email.toLowerCase().trim() + ' || ' + o.titulo.toLowerCase().trim();
+    (grupos[chave] = grupos[chave] || []).push(o);
+  }
+  var duplicados = [];
+  for (var k in grupos) {
+    var arr = grupos[k];
+    if (arr.length < 2) continue;
+    arr.sort(function (a, b) { return b.latestMs - a.latestMs; }); // mais recente primeiro
+    duplicados.push({ chave: k, protocolos: arr, manter: arr[0].protocolo });
+  }
+  return { porProtocolo: porProtocolo, gruposDuplicados: duplicados };
+}
+
+function fmtMs_(ms) {
+  return ms ? Utilities.formatDate(new Date(ms), 'America/Sao_Paulo', 'yyyy-MM-dd HH:mm:ss') : '';
+}
+
+// Passo 1 (leitura): escreve um relatório legível na aba `_diag_duplicatas`.
+// NÃO apaga nada. Revise essa aba antes de remover.
+function gravarDiagnosticoDuplicatas() {
+  var ss = abrirPlanilha();
+  var an = analisarDuplicatas();
+  var aba = ss.getSheetByName('_diag_duplicatas');
+  if (aba) aba.clear(); else aba = ss.insertSheet('_diag_duplicatas');
+  var header = ['grupo', 'sugestao', 'email', 'titulo', 'protocolo', 'versoes', 'criado_em_mais_recente', 'status', 'responsavel'];
+  var linhas = [header];
+  var g = 0;
+  an.gruposDuplicados.forEach(function (grp) {
+    g++;
+    grp.protocolos.forEach(function (o) {
+      linhas.push([
+        g, o.protocolo === grp.manter ? 'MANTER' : 'APAGAR',
+        o.email, o.titulo, o.protocolo,
+        o.versoes.sort(function (a, b) { return a - b; }).join(','),
+        fmtMs_(o.latestMs), o.status, o.responsavel
+      ]);
+    });
+  });
+  if (linhas.length === 1) linhas.push(['—', 'nenhuma duplicata encontrada', '', '', '', '', '', '', '']);
+  aba.getRange(1, 1, linhas.length, header.length).setValues(linhas);
+  aba.setFrozenRows(1);
+  var msg = an.gruposDuplicados.length + ' grupo(s) de duplicatas — veja a aba _diag_duplicatas';
+  Logger.log(msg);
+  return msg;
+}
+
+// Apaga TODAS as linhas (todas as versões) de um protocolo em todas as abas.
+function apagarProtocoloTudo_(ss, protocolo) {
+  var tabs = ['relatorios', 'eixos', 'ods', 'grade_social', 'grade_ambiental', 'parcerias', 'econ_detalhe', 'anexos'];
+  var removidas = 0;
+  tabs.forEach(function (nome) {
+    var aba = abaPorNome(ss, nome);
+    var dados = aba.getDataRange().getValues();
+    var protCol = SCHEMA[nome].indexOf('protocolo');
+    for (var i = dados.length - 1; i >= 1; i--) {
+      if (String(dados[i][protCol]) === String(protocolo)) { aba.deleteRow(i + 1); removidas++; }
+    }
+  });
+  return removidas;
+}
+
+// Passo 2 (DESTRUTIVO): remove os protocolos marcados APAGAR (os não-mais-recentes
+// de cada grupo) em TODAS as abas. Rode só depois de revisar `_diag_duplicatas`.
+function removerDuplicatasSugeridas() {
+  var ss = abrirPlanilha();
+  var an = analisarDuplicatas();
+  var aRemover = [];
+  an.gruposDuplicados.forEach(function (grp) {
+    grp.protocolos.forEach(function (o) { if (o.protocolo !== grp.manter) aRemover.push(o.protocolo); });
+  });
+  var totalLinhas = 0;
+  aRemover.forEach(function (pr) { totalLinhas += apagarProtocoloTudo_(ss, pr); });
+  try { CacheService.getScriptCache().remove('publico:resumo'); } catch (e) {}
+  var msg = 'Removidos ' + aRemover.length + ' protocolo(s): ' +
+            (aRemover.join(', ') || '(nenhum)') + ' | linhas apagadas: ' + totalLinhas;
+  Logger.log(msg);
+  return msg;
+}
+
 /**
  * Snapshot semanal — instalar como trigger time-based (Edit → Current project's triggers).
  */
