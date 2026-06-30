@@ -26,8 +26,11 @@ function cfgOpt(key) {
 var LIMITS = {
   MAX_FILE_BYTES: 10 * 1024 * 1024,       // 10 MB por anexo (fotos/planilha)
   MAX_TOTAL_BYTES: 50 * 1024 * 1024,      // 50 MB no envio inteiro
-  RATE_PER_EMAIL_SECONDS: 300,            // 1 envio por e-mail a cada 5 min
-  RATE_PER_IP_HOURLY: 20,                 // 20 envios por IP por hora
+  RATE_PER_EMAIL_SECONDS: 300,            // 1 envio NOVO por e-mail a cada 5 min
+  RATE_PER_IP_HOURLY: 20,                 // 20 envios/edições por IP por hora
+  RATE_EDIT_PER_EMAIL_HOURLY: 30,         // 30 edições por e-mail por hora (sem trava de 5 min)
+  RATE_LOAD_PER_EMAIL_HOURLY: 60,         // 60 carregamentos por e-mail por hora (anti-enumeração)
+  RATE_LOAD_PER_IP_HOURLY: 120,           // 120 carregamentos por IP por hora
   RECAPTCHA_MIN_SCORE: 0.5,
   CACHE_GET_SECONDS: 300,
   ALLOWED_MIME: [

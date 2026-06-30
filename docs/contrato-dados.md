@@ -15,11 +15,28 @@ frontend (`form/src/schema/relatorio.ts`) e o schema da planilha
 ## Identificação do relatório
 
 Sem chave natural estável (o título não é garantido único). O backend gera um
-`protocolo` e **acrescenta** uma nova linha por submissão (append-only).
+`protocolo` no primeiro envio e **acrescenta** uma nova linha por submissão
+(append-only).
 
 ```
 protocolo = 'BS2025-' + yyyyMMdd-HHmmss + '-' + random4
 ```
+
+### Versionamento (editar pelo protocolo)
+
+O `protocolo` é estável; cada edição grava uma **nova versão** (`versao` = 1 no
+primeiro envio, `max(protocolo)+1` a cada edição). O histórico é preservado: a
+versão "atual" é sempre a de maior `versao`. Linhas legadas (anteriores ao
+versionamento) têm `versao` em branco e contam como **v1**.
+
+Ações do `doPost` (campo `acao` no payload, default `enviar`):
+
+- `enviar` — novo relatório (gera protocolo, grava v1). Comportamento original.
+- `editar` — grava nova versão de um `protocolo` existente. Exige autoria: o
+  `email` informado precisa bater (normalizado) com o da última versão.
+- `carregar` — retorna a última versão de um `protocolo` para reedição. Mesmo
+  gate de autoria (`protocolo` + `email`). Resposta para protocolo inexistente e
+  e-mail divergente é idêntica (`404`), para não revelar a existência do protocolo.
 
 ## Aba `relatorios` (principal) — colunas, nesta ordem
 
@@ -59,18 +76,24 @@ protocolo = 'BS2025-' + yyyyMMdd-HHmmss + '-' + random4
 | `indice_ambiental` | média dos coeficientes ambientais aplicáveis (backend) | — |
 | `criado_em` | timestamp do servidor | — |
 | `status` | `pendente_revisao` (default) | — |
+| `versao` | versão da edição (backend; 1, 2, …; em branco = legado/v1) | — |
 
-## Abas filhas (replace-all por `protocolo`)
+## Abas filhas (replace-all por `protocolo` + `versao`)
 
-- `eixos`: `protocolo`, `eixo`  — um registro por eixo marcado (≥1 obrigatório)
-- `ods`: `protocolo`, `ods`  — um registro por ODS marcado (≥1 obrigatório)
-- `grade_social`: `protocolo`, `aspecto`, `coeficiente`, `valor`
-- `grade_ambiental`: `protocolo`, `aspecto`, `coeficiente`, `valor`
-- `parcerias`: `protocolo`, `instituicao`, `funcao`, `valor_investido`, `participacao_pct`
+`versao` é a **última coluna** de cada aba versionada (acréscimo no fim para não
+deslocar dados legados). A escrita substitui apenas o par (`protocolo`, `versao`)
+da edição corrente — versões anteriores nunca são tocadas.
+
+- `eixos`: `protocolo`, `eixo`, `versao`  — um registro por eixo marcado (≥1 obrigatório)
+- `ods`: `protocolo`, `ods`, `versao`  — um registro por ODS marcado (≥1 obrigatório)
+- `grade_social`: `protocolo`, `aspecto`, `coeficiente`, `valor`, `versao`
+- `grade_ambiental`: `protocolo`, `aspecto`, `coeficiente`, `valor`, `versao`
+- `parcerias`: `protocolo`, `instituicao`, `funcao`, `valor_investido`, `participacao_pct`, `versao`
 - `econ_detalhe`: `protocolo`, `tipo`, `ano`, `anterior`, `atual`, `preco`, `custo`,
   `ganho_unitario`, `participacao_idr`, `area`, `ganho_liquido`, `beneficio`,
-  `outros_estados_ha`, `outros_paises_ha`  — uma linha por `tipo` preenchido
-- `anexos`: `protocolo`, `tipo`, `nome_arquivo`, `drive_file_id`, `tamanho_bytes`, `criado_em`
+  `outros_estados_ha`, `outros_paises_ha`, `versao`  — uma linha por `tipo` preenchido
+- `anexos`: `protocolo`, `tipo`, `nome_arquivo`, `drive_file_id`, `tamanho_bytes`, `criado_em`, `versao`
+  — na edição sem novo upload, os anexos da versão anterior são herdados (carry-forward)
 - `_log`: `timestamp`, `ip_hash`, `origin`, `acao`, `ref`, `detalhe`
 
 `valor` ∈ `{ '-3','-1','0','1','3','NA' }` (string). `NA` = "Não se aplica".

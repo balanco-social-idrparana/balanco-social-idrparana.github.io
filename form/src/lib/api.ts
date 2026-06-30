@@ -1,4 +1,4 @@
-import type { Relatorio } from '../schema/relatorio';
+import type { Relatorio, RelatorioInput } from '../schema/relatorio';
 import { executarRecaptcha } from './recaptcha';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -68,18 +68,45 @@ function inferirMime(nome: string): string {
 export interface RespostaEnvio {
   ok: boolean;
   protocolo?: string;
+  versao?: number;
   mensagem?: string;
   erro?: string;
   campos?: string[];
   _status?: number;
 }
 
-export async function enviarRelatorio(
-  relatorio: Relatorio,
-  anexos: AnexoPayload[]
-): Promise<RespostaEnvio> {
-  if (!API_URL) throw new Error('VITE_API_URL não configurado');
+export interface RespostaCarregar {
+  ok: boolean;
+  protocolo?: string;
+  versao?: number;
+  dados?: RelatorioInput;
+  erro?: string;
+  _status?: number;
+}
 
+// text/plain evita preflight CORS — Apps Script aceita JSON cru.
+async function postar<T>(payload: unknown): Promise<T> {
+  if (!API_URL) throw new Error('VITE_API_URL não configurado');
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    redirect: 'follow',
+  });
+  const txt = await r.text();
+  try {
+    return JSON.parse(txt) as T;
+  } catch {
+    return { ok: false, erro: 'resposta inválida do servidor' } as T;
+  }
+}
+
+async function enviarComAcao(
+  acao: 'enviar' | 'editar',
+  relatorio: Relatorio,
+  anexos: AnexoPayload[],
+  protocolo?: string
+): Promise<RespostaEnvio> {
   const totalBytes = anexos.reduce((n, a) => n + bytesDeBase64(a.base64), 0);
   if (totalBytes > MAX_TOTAL_BYTES) {
     return { ok: false, erro: 'tamanho total dos anexos excede 50 MB' };
@@ -89,22 +116,43 @@ export async function enviarRelatorio(
 
   const payload = {
     ...relatorio,
+    acao,
+    ...(protocolo ? { protocolo } : {}),
     anexos,
     origin: window.location.origin,
     recaptcha_token,
   };
 
-  // text/plain evita preflight CORS — Apps Script aceita JSON cru.
-  const r = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
-    redirect: 'follow',
-  });
-  const txt = await r.text();
-  try {
-    return JSON.parse(txt) as RespostaEnvio;
-  } catch {
-    return { ok: false, erro: 'resposta inválida do servidor' };
-  }
+  return postar<RespostaEnvio>(payload);
+}
+
+export async function enviarRelatorio(
+  relatorio: Relatorio,
+  anexos: AnexoPayload[]
+): Promise<RespostaEnvio> {
+  return enviarComAcao('enviar', relatorio, anexos);
+}
+
+export async function editarRelatorio(
+  protocolo: string,
+  relatorio: Relatorio,
+  anexos: AnexoPayload[]
+): Promise<RespostaEnvio> {
+  return enviarComAcao('editar', relatorio, anexos, protocolo);
+}
+
+/** Carrega a última versão de um relatório para edição (gate: protocolo + e-mail do autor). */
+export async function carregarRelatorio(
+  protocolo: string,
+  email: string
+): Promise<RespostaCarregar> {
+  const recaptcha_token = await executarRecaptcha('carregar_bs');
+  const payload = {
+    acao: 'carregar',
+    protocolo: protocolo.trim(),
+    email: email.trim(),
+    origin: window.location.origin,
+    recaptcha_token,
+  };
+  return postar<RespostaCarregar>(payload);
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { useForm, FormProvider, useFormContext, FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { relatorioSchema, Relatorio, RelatorioInput, valoresPadrao } from './schema/relatorio';
@@ -10,7 +10,18 @@ import { ListaRepetivel } from './components/ListaRepetivel';
 import { EconomiaDetalhe } from './components/EconomiaDetalhe';
 import { EIXOS_ESTRATEGICOS, ODS } from './data/eixos';
 import { GRADE_SOCIAL, GRADE_AMBIENTAL, URL_INDICADORES, DOC_INDICADOR } from './data/grades';
-import { enviarRelatorio, AnexoPayload, RespostaEnvio } from './lib/api';
+import {
+  enviarRelatorio, editarRelatorio, carregarRelatorio,
+  AnexoPayload, RespostaEnvio,
+} from './lib/api';
+
+/** Protocolo em edição (null = criando um novo relatório). */
+interface ModoEdicao {
+  protocolo: string;
+  versao: number;
+}
+const EdicaoContext = createContext<ModoEdicao | null>(null);
+const useEdicao = () => useContext(EdicaoContext);
 
 const BASE = import.meta.env.BASE_URL || '/';
 const URL_ORIENTACOES = `${BASE}orientacoes-bs-2025.pdf`;
@@ -61,16 +72,26 @@ export function App() {
   const [anexos, setAnexos] = useState<AnexoPayload[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<RespostaEnvio | null>(null);
+  const [edicao, setEdicao] = useState<ModoEdicao | null>(null);
 
   async function aoEnviar(dados: Relatorio) {
     setEnviando(true);
     setResultado(null);
     try {
-      const r = await enviarRelatorio(dados, anexos);
+      const r = edicao
+        ? await editarRelatorio(edicao.protocolo, dados, anexos)
+        : await enviarRelatorio(dados, anexos);
       setResultado(r);
       if (r.ok) {
-        metodos.reset(valoresPadrao as RelatorioInput);
-        setAnexos([]);
+        if (edicao) {
+          // Permanece em modo edição com a nova versão como base; o próximo
+          // salvamento criará a versão seguinte. Anexos enviados já foram gravados.
+          setEdicao({ protocolo: edicao.protocolo, versao: r.versao ?? edicao.versao + 1 });
+          setAnexos([]);
+        } else {
+          metodos.reset(valoresPadrao as RelatorioInput);
+          setAnexos([]);
+        }
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
@@ -78,6 +99,22 @@ export function App() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  function aoCarregar(protocolo: string, versao: number, dados: RelatorioInput) {
+    metodos.reset(dados);
+    setEdicao({ protocolo, versao });
+    setAnexos([]);
+    setResultado(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelarEdicao() {
+    metodos.reset(valoresPadrao as RelatorioInput);
+    setEdicao(null);
+    setAnexos([]);
+    setResultado(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function aoErroValidacao(errs: FieldErrors<RelatorioInput>) {
@@ -94,6 +131,7 @@ export function App() {
 
   return (
     <FormProvider {...metodos}>
+      <EdicaoContext.Provider value={edicao}>
       <div className="marca-topo">
         <div className="marca-inner">
           <img src={`${BASE}idr-gov-seab-h.webp`} alt="IDR-Paraná · Governo do Estado do Paraná · Secretaria da Agricultura e do Abastecimento" />
@@ -115,11 +153,29 @@ export function App() {
 
         <RecursosDownload />
 
+        {!edicao && <CarregarParaEditar onCarregar={aoCarregar} />}
+
+        {edicao && (
+          <div className="aviso-edicao">
+            <div>
+              <strong>Editando o relatório {edicao.protocolo}</strong>
+              <div>Versão atual: <strong>v{edicao.versao}</strong>. Ao salvar, será criada a versão <strong>v{edicao.versao + 1}</strong> (as anteriores são preservadas).</div>
+              <div className="campo-ajuda">Os anexos enviados anteriormente são mantidos; envie novos arquivos apenas se quiser substituí-los.</div>
+            </div>
+            <button type="button" className="secundario" onClick={cancelarEdicao}>
+              Cancelar edição (novo relatório)
+            </button>
+          </div>
+        )}
+
         {resultado?.ok && (
           <div className="resultado-ok">
-            <strong>Relatório recebido!</strong>
-            <div>Protocolo: <code>{resultado.protocolo}</code></div>
+            <strong>{resultado.versao && resultado.versao > 1 ? 'Relatório atualizado!' : 'Relatório recebido!'}</strong>
+            <div>Protocolo: <code>{resultado.protocolo}</code>{resultado.versao ? <> · versão <strong>v{resultado.versao}</strong></> : null}</div>
             <div>{resultado.mensagem}</div>
+            {resultado.versao && resultado.versao === 1 && (
+              <div className="campo-ajuda">Guarde este protocolo: com ele e o seu e-mail você pode editar o relatório depois.</div>
+            )}
           </div>
         )}
         {resultado && !resultado.ok && (
@@ -153,7 +209,11 @@ export function App() {
 
           <div className="barra-acoes">
             <button type="submit" disabled={enviando}>
-              {enviando ? 'Enviando...' : 'Enviar relatório'}
+              {enviando
+                ? 'Enviando...'
+                : edicao
+                  ? `Salvar nova versão (v${edicao.versao + 1})`
+                  : 'Enviar relatório'}
             </button>
           </div>
         </form>
@@ -165,6 +225,7 @@ export function App() {
         <p>Secretaria da Agricultura e do Abastecimento · Governo do Estado do Paraná</p>
         <p>Grupo Gestor do Balanço Social 2025</p>
       </footer>
+      </EdicaoContext.Provider>
     </FormProvider>
   );
 }
@@ -185,14 +246,81 @@ function RecursosDownload() {
   );
 }
 
+function CarregarParaEditar({
+  onCarregar,
+}: {
+  onCarregar: (protocolo: string, versao: number, dados: RelatorioInput) => void;
+}) {
+  const [protocolo, setProtocolo] = useState('');
+  const [email, setEmail] = useState('');
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  async function carregar() {
+    setErro('');
+    if (!protocolo.trim() || !email.trim()) {
+      setErro('Informe o protocolo e o e-mail usados no envio.');
+      return;
+    }
+    setCarregando(true);
+    try {
+      const r = await carregarRelatorio(protocolo, email);
+      if (r.ok && r.dados) {
+        onCarregar(r.protocolo ?? protocolo.trim(), r.versao ?? 1, r.dados);
+      } else {
+        setErro(r.erro || 'Não foi possível carregar o relatório.');
+      }
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  return (
+    <details className="carregar-editar">
+      <summary>Já enviou um relatório? Editar usando o protocolo</summary>
+      <p className="campo-ajuda">
+        Informe o número do protocolo (ex.: <code>BS2025-...</code>) e o mesmo e-mail
+        usado no envio. Ao salvar, uma nova versão é criada e as anteriores são preservadas.
+      </p>
+      <div className="grid">
+        <Field label="Protocolo">
+          <input
+            value={protocolo}
+            onChange={(e) => setProtocolo(e.target.value)}
+            placeholder="BS2025-00000000-000000-0000"
+          />
+        </Field>
+        <Field label="E-mail usado no envio">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+      </div>
+      <div className="barra-acoes">
+        <button type="button" className="secundario" onClick={carregar} disabled={carregando}>
+          {carregando ? 'Carregando...' : 'Carregar para editar'}
+        </button>
+      </div>
+      {erro && <div className="erro-msg">{erro}</div>}
+    </details>
+  );
+}
+
 function Identificacao() {
   const { register, formState: { errors } } = useFormContext<RelatorioInput>();
+  const edicao = useEdicao();
   return (
     <section className="cartao">
       <h2>1. Identificação da ação ou tecnologia</h2>
       <div className="grid">
-        <Field label="E-mail" obrigatorio erro={errors.email?.message}>
-          <input type="email" {...register('email')} />
+        <Field label="E-mail" obrigatorio
+          ajuda={edicao ? 'Bloqueado durante a edição: o e-mail identifica o autor do protocolo.' : undefined}
+          erro={errors.email?.message}>
+          <input type="email" readOnly={!!edicao} {...register('email')} />
         </Field>
         <Field label="Nome do responsável pelas informações" obrigatorio erro={errors.responsavel?.message}>
           <input {...register('responsavel')} />

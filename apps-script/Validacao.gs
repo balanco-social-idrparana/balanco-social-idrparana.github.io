@@ -10,6 +10,11 @@ function validarEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email)) && email.length <= 254;
 }
 
+/** Formato do protocolo: BS2025-yyyyMMdd-HHmmss-<rand4>. */
+function validarProtocolo(p) {
+  return typeof p === 'string' && /^BS2025-\d{8}-\d{6}-\d{4}$/.test(p);
+}
+
 /**
  * Valor de impacto da metodologia Ambitec-Agro.
  * Aceita apenas a escala fechada: -3 | -1 | 0 | +1 | +3 | Não se aplica.

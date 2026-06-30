@@ -49,9 +49,11 @@ bater com `docs/contrato-dados.md`.
    - Anote a **URL** terminada em `/exec` — é o `VITE_API_URL`.
 
 A submissão é append-only: o `doPost` valida honeypot (`website_url`),
-reCAPTCHA v3 (action `relatorio_bs`), `origin` e rate limit; gera o `protocolo`
-(`BS2025-yyyyMMdd-HHmmss-<rand4>`) e acrescenta uma linha em `relatorios`,
-regravando as abas filhas por `protocolo`.
+reCAPTCHA v3 (action `relatorio_bs` em envio/edição, `carregar_bs` ao carregar),
+`origin` e rate limit; no envio gera o `protocolo`
+(`BS2025-yyyyMMdd-HHmmss-<rand4>`) e acrescenta uma linha em `relatorios`. A
+edição (`acao: 'editar'`) acrescenta uma **nova versão** do mesmo protocolo; as
+abas filhas são regravadas por (`protocolo`, `versao`), preservando o histórico.
 
 ## 3. reCAPTCHA v3
 
@@ -61,8 +63,8 @@ regravando as abas filhas por `protocolo`.
 4. Anote:
    - **Site key** (pública) → vai para o frontend como `VITE_RECAPTCHA_SITE_KEY`.
    - **Secret key** → vai para o Apps Script como `RECAPTCHA_SECRET` (passo 2.4).
-5. O frontend executa o reCAPTCHA com a action `relatorio_bs`; o backend valida
-   action e score.
+5. O frontend executa o reCAPTCHA com as actions `relatorio_bs` (envio/edição) e
+   `carregar_bs` (carregar para editar); o backend valida action e score.
 
 ## 4. GitHub (frontend + Pages)
 
@@ -105,6 +107,26 @@ No projeto do Apps Script (passo 2):
 - [ ] Enviar relatórios em sequência rápida do mesmo IP → rate limit recusa.
 - [ ] Tentar enviar um `.exe` renomeado para `.pdf` → recusado.
 - [ ] Rodar `backupSemanal` manualmente uma vez → backup aparece na pasta.
+- [ ] No formulário, abrir "Editar usando o protocolo", informar o protocolo do
+      teste + o e-mail usado → o formulário carrega preenchido.
+- [ ] Alterar um campo e salvar → resposta indica `v2`; conferir nova linha em
+      `relatorios` com mesmo `protocolo` e `versao=2`, e abas filhas com `versao=2`
+      (as linhas `versao=1` permanecem intactas).
+- [ ] Tentar carregar com e-mail errado → `404` ("não encontrado para este e-mail").
+
+## 6.1 Atualizar um deployment já existente (migração do versionamento)
+
+Para um banco que já tinha dados antes do versionamento:
+
+1. Cole/atualize os arquivos de `apps-script/` no editor (em especial `Code.gs`,
+   `Sheets.gs`, `Config.gs`, `Validacao.gs`).
+2. Execute `configurarRecursos` **uma vez** — ele acrescenta a coluna `versao` no
+   **fim** de cada aba (sem deslocar dados existentes). Linhas antigas ficam com
+   `versao` em branco e são tratadas como **v1**.
+3. *Implantar → Gerenciar implantações → Editar → Nova versão* (reaproveita a URL
+   `/exec`, não muda o `VITE_API_URL`).
+4. No reCAPTCHA admin, nenhuma mudança é necessária (a action `carregar_bs` usa a
+   mesma chave). Rebuild/redeploy do frontend pelo GitHub Actions.
 
 ## Rotação / troca de conta dona
 
