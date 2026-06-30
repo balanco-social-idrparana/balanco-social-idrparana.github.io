@@ -48,7 +48,7 @@ bater com `docs/contrato-dados.md`.
    - Quem pode acessar: **Qualquer pessoa**.
    - Anote a **URL** terminada em `/exec` — é o `VITE_API_URL`.
 
-A submissão é append-only: o `doPost` valida honeypot (`website_url`),
+A submissão é append-only: o `doPost` valida honeypot (`hp_token`),
 reCAPTCHA v3 (action `relatorio_bs` em envio/edição, `carregar_bs` ao carregar),
 `origin` e rate limit; no envio gera o `protocolo`
 (`BS2025-yyyyMMdd-HHmmss-<rand4>`) e acrescenta uma linha em `relatorios`. A

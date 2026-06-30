@@ -9,7 +9,8 @@ frontend (`form/src/schema/relatorio.ts`) e o schema da planilha
 (`apps-script/Sheets.gs`) DEVEM bater exatamente com os nomes abaixo.
 
 > Não há CNPJ/CPF/CEP. Não há consentimento LGPD (formulário interno). Defesa
-> anti-abuso: honeypot `website_url` + reCAPTCHA v3 (`recaptcha_token`) +
+> anti-abuso: honeypot `hp_token` (nome neutro — `website_url` era autopreenchido
+> pelo navegador e bloqueava envios legítimos) + reCAPTCHA v3 (`recaptcha_token`) +
 > validação de `origin` + rate-limit, conforme `gestaodeater`.
 
 ## Identificação do relatório
@@ -135,7 +136,7 @@ Todos os escalares acima (exceto os gerados pelo backend) + arrays:
   "grade_ambiental": [{ "aspecto":"eficiencia", "coeficiente":"Uso de energia", "valor":"NA" }, ...],
   "publicacoes": "...",
   "anexos": [{ "tipo":"planilha_complementar", "nome":"...", "mime":"...", "base64":"..." }, ...],
-  "website_url": "",            // honeypot (deve vir vazio)
+  "hp_token": "",               // honeypot (deve vir vazio; nome neutro p/ evitar autofill)
   "recaptcha_token": "...",
   "origin": "https://balanco-social-idrparana.github.io"
 }

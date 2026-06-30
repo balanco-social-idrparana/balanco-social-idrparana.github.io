@@ -264,5 +264,5 @@ planilha, mas o formulário não oferece esse upload).
   (`NA` conta como resposta); nenhum coeficiente desconhecido.
 - `parcerias` e `econ_detalhe` são opcionais; valores numéricos ≥ 0 e
   percentuais em [0, 100]. Anexos são opcionais.
-- O campo oculto `website_url` (honeypot) deve vir vazio; reCAPTCHA v3 (action
-  `relatorio_bs`) válido e `origin` autorizado.
+- O campo oculto `hp_token` (honeypot; nome neutro para evitar autofill) deve vir
+  vazio; reCAPTCHA v3 (action `relatorio_bs`) válido e `origin` autorizado.
