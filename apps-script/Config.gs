@@ -31,7 +31,15 @@ var LIMITS = {
   RATE_EDIT_PER_EMAIL_HOURLY: 30,         // 30 edições por e-mail por hora (sem trava de 5 min)
   RATE_LOAD_PER_EMAIL_HOURLY: 60,         // 60 carregamentos por e-mail por hora (anti-enumeração)
   RATE_LOAD_PER_IP_HOURLY: 120,           // 120 carregamentos por IP por hora
-  RECAPTCHA_MIN_SCORE: 0.5,
+  // reCAPTCHA v3: nota mínima [0..1]. Em rede corporativa (vários usuários atrás
+  // de UM mesmo IP/proxy) o v3 atribui notas baixas e reprova pessoas REAIS — por
+  // isso o corte é baixo aqui. As defesas reais continuam: token válido + action
+  // + origin + honeypot + rate-limit. Ajustável sem deploy via Script Property
+  // 'RECAPTCHA_MIN_SCORE' (ex.: subir para 0.5 se virar formulário público).
+  RECAPTCHA_MIN_SCORE: (function () {
+    var v = parseFloat(PropertiesService.getScriptProperties().getProperty('RECAPTCHA_MIN_SCORE'));
+    return isNaN(v) ? 0.1 : v;
+  })(),
   CACHE_GET_SECONDS: 300,
   ALLOWED_MIME: [
     'application/pdf',
