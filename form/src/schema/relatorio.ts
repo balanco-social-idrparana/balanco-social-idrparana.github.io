@@ -142,12 +142,6 @@ export const relatorioSchema = z.object({
 
   // Publicações
   publicacoes: textoOpc(),
-
-  // Anti-bot: honeypot. A validação real ocorre no backend (descarta se vier
-  // preenchido). O Zod não falha aqui por causa de autopreenchimento. Nome
-  // NEUTRO de propósito: nomes como "website_url" eram autopreenchidos pelo
-  // navegador e derrubavam envios legítimos.
-  hp_token: z.string().optional().default(''),
 });
 
 export type Relatorio = z.output<typeof relatorioSchema>;
@@ -170,5 +164,4 @@ export const valoresPadrao: Partial<RelatorioInput> = {
     agregacao: { ano: '2025' },
   },
   publicacoes: '',
-  hp_token: '',
 };

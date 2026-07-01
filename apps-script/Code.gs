@@ -39,16 +39,11 @@ function doPost(e) {
       return resposta(403, { erro: 'origem não permitida' });
     }
 
-    // 2. Honeypot — campo oculto que humanos não preenchem. NÃO usar nomes que o
-    //    autofill do navegador reconheça: "website_url" era autopreenchido por
-    //    gerenciadores de senha/navegador e derrubava envios LEGÍTIMOS. O campo
-    //    atual ('hp_token') tem nome neutro que o autofill ignora. O 'website_url'
-    //    é deliberadamente NÃO checado (frontends antigos em cache podem enviá-lo
-    //    autopreenchido — não devem ser bloqueados por isso).
-    if (corpo.hp_token) {
-      registrarLogSeguro(ipHash, corpo.origin, 'honeypot', '', '');
-      return resposta(400, { erro: 'requisição inválida' });
-    }
+    // 2. Honeypot REMOVIDO (2026-07). O campo oculto (website_url e depois
+    //    hp_token) era autopreenchido pelo navegador/gerenciador de senha dos
+    //    servidores e derrubava envios LEGÍTIMOS com "requisição inválida". Como
+    //    não havia sinal de bots e as demais defesas cobrem o caso, o honeypot
+    //    foi desativado. Defesas ativas: reCAPTCHA v3 + origin + rate-limit.
 
     // 3. reCAPTCHA v3 — ação esperada varia por operação. O score NÃO é
     //    devolvido ao cliente (evita calibragem de bot).
