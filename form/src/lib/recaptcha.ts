@@ -21,7 +21,13 @@ export function carregarRecaptcha(): Promise<void> {
     s.async = true;
     s.defer = true;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error('falha ao carregar reCAPTCHA'));
+    s.onerror = () => {
+      // Zera o cache: sem isto, uma falha transitória de rede deixaria a
+      // promise rejeitada cacheada e TODO envio seguinte falharia até o F5.
+      carregando = null;
+      s.remove();
+      reject(new Error('falha ao carregar a verificação anti-bot. Tente enviar novamente.'));
+    };
     document.head.appendChild(s);
   });
   return carregando;

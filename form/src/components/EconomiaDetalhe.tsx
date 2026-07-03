@@ -7,11 +7,17 @@ function p(name: string): Path<RelatorioInput> {
   return name as Path<RelatorioInput>;
 }
 
+type ErrosBloco = Partial<Record<string, { message?: string }>>;
+
 function BlocoCalc({ bloco }: { bloco: BlocoEcon }) {
-  const { register } = useFormContext<RelatorioInput>();
+  const { register, formState: { errors } } = useFormContext<RelatorioInput>();
   const base = `econ_detalhe.${bloco.tipo}`;
   const valores = (useWatch<RelatorioInput>({ name: p(base) }) as ValoresBloco | undefined) || {};
   const { ganhoUnitario, ganhoLiquido, beneficio } = calcularEcon(bloco.tipo, valores);
+
+  // Erros de validação deste bloco (para exibir junto de cada campo).
+  const errosBloco = ((errors.econ_detalhe as Record<string, ErrosBloco> | undefined) ?? {})[bloco.tipo] ?? {};
+  const erroDe = (campo: string) => errosBloco[campo]?.message;
 
   const numInput = (campo: string) => (
     <input type="number" step="any" min={0} {...register(p(`${base}.${campo}`), { valueAsNumber: true })} />
@@ -23,13 +29,13 @@ function BlocoCalc({ bloco }: { bloco: BlocoEcon }) {
 
       <p className="campo-ajuda"><strong>{bloco.subtitulo}</strong> — unidades padrão: ha, kg, R$.</p>
       <div className="grid">
-        <Field label="Ano civil ou agrícola">
+        <Field label="Ano civil ou agrícola" erro={erroDe('ano')}>
           <input type="text" {...register(p(`${base}.ano`))} />
         </Field>
-        <Field label={bloco.labelAnterior}>{numInput('anterior')}</Field>
-        <Field label={bloco.labelAtual}>{numInput('atual')}</Field>
-        {bloco.temPrecoCusto && <Field label={bloco.labelPreco!}>{numInput('preco')}</Field>}
-        {bloco.temPrecoCusto && <Field label={bloco.labelCusto!}>{numInput('custo')}</Field>}
+        <Field label={bloco.labelAnterior} erro={erroDe('anterior')}>{numInput('anterior')}</Field>
+        <Field label={bloco.labelAtual} erro={erroDe('atual')}>{numInput('atual')}</Field>
+        {bloco.temPrecoCusto && <Field label={bloco.labelPreco!} erro={erroDe('preco')}>{numInput('preco')}</Field>}
+        {bloco.temPrecoCusto && <Field label={bloco.labelCusto!} erro={erroDe('custo')}>{numInput('custo')}</Field>}
         <Field label={bloco.labelGanhoUnitario + ' — calculado'}>
           <input type="text" readOnly tabIndex={-1} value={ganhoUnitario.toLocaleString('pt-BR')} className="calculado" />
         </Field>
@@ -37,10 +43,10 @@ function BlocoCalc({ bloco }: { bloco: BlocoEcon }) {
 
       <p className="campo-ajuda" style={{ marginTop: 10 }}><strong>Benefícios econômicos no Estado do Paraná</strong></p>
       <div className="grid">
-        <Field label="Participação IDR-Paraná (%)" ajuda="Recomenda-se não ultrapassar 70%.">
+        <Field label="Participação IDR-Paraná (%)" ajuda="Recomenda-se não ultrapassar 70%." erro={erroDe('participacao_idr')}>
           <input type="number" step="any" min={0} max={100} {...register(p(`${base}.participacao_idr`), { valueAsNumber: true })} />
         </Field>
-        <Field label={bloco.labelArea}>{numInput('area')}</Field>
+        <Field label={bloco.labelArea} erro={erroDe('area')}>{numInput('area')}</Field>
         <Field label="Ganho líquido IDR-Paraná — calculado">
           <input type="text" readOnly tabIndex={-1} value={ganhoLiquido.toLocaleString('pt-BR')} className="calculado" />
         </Field>
@@ -51,8 +57,8 @@ function BlocoCalc({ bloco }: { bloco: BlocoEcon }) {
 
       <p className="campo-ajuda" style={{ marginTop: 10 }}><strong>Área de adoção fora do Paraná</strong></p>
       <div className="grid">
-        <Field label="Outros estados do Brasil (ha)">{numInput('outros_estados_ha')}</Field>
-        <Field label="Outros países (ha)">{numInput('outros_paises_ha')}</Field>
+        <Field label="Outros estados do Brasil (ha)" erro={erroDe('outros_estados_ha')}>{numInput('outros_estados_ha')}</Field>
+        <Field label="Outros países (ha)" erro={erroDe('outros_paises_ha')}>{numInput('outros_paises_ha')}</Field>
       </div>
     </div>
   );

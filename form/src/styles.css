@@ -92,8 +92,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.remover { background: #fff; color: var(--cor-erro); border: 1px solid #e6b3ac; box-shadow: none; padding: 4px 12px; font-size: 0.8rem; }
 button.remover:hover:not(:disabled) { background: #fdecea; }
 
-.honeypot { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
-
 .barra-acoes { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
 .barra-acoes button[type=submit] { padding: 12px 28px; font-size: 1rem; }
 

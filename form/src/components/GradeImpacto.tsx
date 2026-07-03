@@ -14,8 +14,11 @@ interface Props<T extends FieldValues> {
  * gravada como itens { aspecto, coeficiente, valor } no array do formulário.
  */
 export function GradeImpacto<T extends FieldValues>({ name, grupo }: Props<T>) {
-  const { setValue } = useFormContext<T>();
+  const { setValue, formState: { errors } } = useFormContext<T>();
   const itens = (useWatch<T>({ name }) as ItemGrade[] | undefined) || [];
+  // Validar a grade inteira no primeiro clique acusaria "faltando: ..." para
+  // itens ainda não respondidos. Só revalida quando já existe erro (para limpá-lo).
+  const jaTemErro = Boolean((errors as Record<string, unknown>)[String(name)]);
 
   function valorDe(coeficiente: string): ValorImpacto | undefined {
     return itens.find((i) => i.aspecto === grupo.aspecto && i.coeficiente === coeficiente)?.valor;
@@ -26,7 +29,7 @@ export function GradeImpacto<T extends FieldValues>({ name, grupo }: Props<T>) {
       (i) => !(i.aspecto === grupo.aspecto && i.coeficiente === coeficiente)
     );
     const novo: ItemGrade[] = [...semEste, { aspecto: grupo.aspecto, coeficiente, valor }];
-    setValue(name, novo as PathValue<T, Path<T>>, { shouldValidate: true, shouldDirty: true });
+    setValue(name, novo as PathValue<T, Path<T>>, { shouldValidate: jaTemErro, shouldDirty: true });
   }
 
   const nomeRadio = `${String(name)}-${grupo.aspecto}`;

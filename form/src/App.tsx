@@ -1,7 +1,8 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useForm, FormProvider, useFormContext, FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { relatorioSchema, Relatorio, RelatorioInput, valoresPadrao } from './schema/relatorio';
+import { relatorioSchema, Relatorio, RelatorioInput, valoresPadrao, MAX_PARCERIAS } from './schema/relatorio';
+import { lerRascunho, salvarRascunho, limparRascunho, temRascunhoNovoPendente } from './lib/rascunho';
 import { Field } from './components/Field';
 import { CheckboxGroup } from './components/CheckboxGroup';
 import { GradeImpacto } from './components/GradeImpacto';
@@ -73,6 +74,54 @@ export function App() {
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<RespostaEnvio | null>(null);
   const [edicao, setEdicao] = useState<ModoEdicao | null>(null);
+  const [rascunhoDe, setRascunhoDe] = useState<number | null>(null);
+  const edicaoRef = useRef<ModoEdicao | null>(edicao);
+  edicaoRef.current = edicao;
+  // Subscrição a isDirty DURANTE o render (o formState do react-hook-form é um
+  // proxy: ler só dentro de callback devolve snapshot obsoleto). O ref leva o
+  // valor vivo para dentro do timer de rascunho e do beforeunload.
+  const isDirty = metodos.formState.isDirty;
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+
+  // Restaura rascunho salvo automaticamente (uma vez, no mount).
+  useEffect(() => {
+    const r = lerRascunho();
+    if (!r) return;
+    metodos.reset({ ...valoresPadrao, ...r.values } as RelatorioInput);
+    setEdicao(r.edicao);
+    setRascunhoDe(r.salvoEm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Salva rascunho com debounce a cada alteração (anexos não são persistidos).
+  useEffect(() => {
+    let timer: number | undefined;
+    const sub = metodos.watch(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (isDirtyRef.current) {
+          salvarRascunho(metodos.getValues(), edicaoRef.current);
+        }
+      }, 1000);
+    });
+    return () => {
+      window.clearTimeout(timer);
+      sub.unsubscribe();
+    };
+  }, [metodos]);
+
+  // Confirma antes de fechar/recarregar com alterações não salvas.
+  useEffect(() => {
+    function aoSair(e: BeforeUnloadEvent) {
+      if (isDirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', aoSair);
+    return () => window.removeEventListener('beforeunload', aoSair);
+  }, [metodos]);
 
   async function aoEnviar(dados: Relatorio) {
     setEnviando(true);
@@ -83,9 +132,15 @@ export function App() {
         : await enviarRelatorio(dados, anexos);
       setResultado(r);
       if (r.ok) {
+        limparRascunho();
+        setRascunhoDe(null);
         if (edicao) {
           // Permanece em modo edição com a nova versão como base; o próximo
           // salvamento criará a versão seguinte. Anexos enviados já foram gravados.
+          // reset(getValues) marca o formulário como pristine: zera isDirty para
+          // o beforeunload não avisar falsamente após salvar e um debounce
+          // pendente não regravar o rascunho recém-limpo.
+          metodos.reset(metodos.getValues());
           setEdicao({ protocolo: edicao.protocolo, versao: r.versao ?? edicao.versao + 1 });
           setAnexos([]);
         } else {
@@ -102,10 +157,23 @@ export function App() {
   }
 
   function aoCarregar(protocolo: string, versao: number, dados: RelatorioInput) {
+    // Carregar sobrescreve o rascunho (slot único). Se houver rascunho de um
+    // relatório NOVO, confirma antes de descartá-lo — sua mera existência já
+    // representa trabalho não enviado (o rascunho só é salvo quando há alteração),
+    // inclusive um rascunho restaurado de outra sessão, em que isDirty é false.
+    if (temRascunhoNovoPendente()) {
+      const ok = window.confirm(
+        'Você tem um relatório novo em preenchimento que ainda não foi enviado. ' +
+        'Carregar outro protocolo para edição vai descartá-lo. Deseja continuar?'
+      );
+      if (!ok) return;
+    }
+    limparRascunho();
     metodos.reset(dados);
     setEdicao({ protocolo, versao });
     setAnexos([]);
     setResultado(null);
+    setRascunhoDe(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -114,7 +182,17 @@ export function App() {
     setEdicao(null);
     setAnexos([]);
     setResultado(null);
+    limparRascunho();
+    setRascunhoDe(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function descartarRascunho() {
+    limparRascunho();
+    metodos.reset(valoresPadrao as RelatorioInput);
+    setEdicao(null);
+    setAnexos([]);
+    setRascunhoDe(null);
   }
 
   function aoErroValidacao(errs: FieldErrors<RelatorioInput>) {
@@ -168,6 +246,19 @@ export function App() {
           </div>
         )}
 
+        {rascunhoDe !== null && (
+          <div className="aviso-edicao">
+            <div>
+              <strong>Rascunho recuperado</strong>
+              <div>Preenchimento salvo automaticamente em {new Date(rascunhoDe).toLocaleString('pt-BR')}.</div>
+              <div className="campo-ajuda">Anexos não ficam no rascunho — adicione os arquivos novamente antes de enviar.</div>
+            </div>
+            <button type="button" className="secundario" onClick={descartarRascunho}>
+              Descartar rascunho
+            </button>
+          </div>
+        )}
+
         {resultado?.ok && (
           <div className="resultado-ok">
             <strong>{resultado.versao && resultado.versao > 1 ? 'Relatório atualizado!' : 'Relatório recebido!'}</strong>
@@ -201,8 +292,18 @@ export function App() {
 
           <section className="cartao">
             <h2>6. Anexos (fotos e documentos)</h2>
-            <UploadAnexos onChange={setAnexos} />
+            <UploadAnexos anexos={anexos} onChange={setAnexos} />
           </section>
+
+          <p className="campo-ajuda">
+            <strong>Privacidade:</strong> os dados informados destinam-se à composição do
+            Balanço Social 2025 do IDR-Paraná (LGPD, art. 7º, III — execução de política
+            pública) e são acessados apenas pela equipe gestora do Balanço Social. O e-mail
+            identifica o autor do relatório e permite editá-lo pelo protocolo. Este
+            formulário é protegido por reCAPTCHA; aplicam-se a{' '}
+            <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Política de Privacidade</a> e
+            os <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Termos de Serviço</a> do Google.
+          </p>
 
           <div className="barra-acoes">
             <button type="submit" disabled={enviando}>
@@ -370,7 +471,7 @@ function DescricaoTecnica() {
         <CheckboxGroup<RelatorioInput> name="ods" opcoes={ODS} colunaUnica />
       </Field>
       <Field label="Resumo descritivo" obrigatorio
-        ajuda="Destaque as principais características da ação/tecnologia e suas vantagens em relação à situação anterior, com breve comparação de aspectos positivos e eventuais restrições. Sugestão: histórico, grau de aceitação dos agricultores, evolução das áreas de adoção e regiões. Use linguagem clara, voltada ao público geral. Máx. 3.000 caracteres."
+        ajuda="Destaque as principais características da ação/tecnologia e suas vantagens em relação à situação anterior, com breve comparação de aspectos positivos e eventuais restrições. Sugestão: histórico, grau de aceitação dos agricultores, evolução das áreas de adoção e regiões. Use linguagem clara, voltada ao público geral. Recomendado: até 3.000 caracteres."
         erro={errors.resumo?.message}>
         <textarea rows={5} {...register('resumo')} />
       </Field>
@@ -417,11 +518,11 @@ function ImpactosEconomicos() {
         adotada anteriormente. Cite o montante estimado e, sobretudo, o papel do IDR-Paraná
         na geração dos impactos. Os valores numéricos correspondentes são informados na seção 4.
       </p>
-      {campo('econ_produtividade', 'Incremento de Produtividade', 'Comente os impactos econômicos em relação ao incremento de produtividade. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
-      {campo('econ_reducao_custos', 'Redução de Custos', 'Comente os impactos econômicos em relação à redução de custos. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
-      {campo('econ_expansao_area', 'Expansão da Produção em Novas Áreas', 'Comente os impactos econômicos em relação à expansão da produção em novas áreas. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
-      {campo('econ_agregacao_valor', 'Agregação de Valor', 'Comente os impactos econômicos em relação à agregação de valor. Máx. 3.000 caracteres. Os valores são informados na seção 4.')}
-      {campo('econ_memoria_calculo', 'Memória de cálculo', 'Demonstre como os impactos econômicos foram estimados (metodologia do excedente econômico), comparando com a tecnologia anterior, e explique como foram obtidos os números informados na seção 4. Máx. 3.000 caracteres.')}
+      {campo('econ_produtividade', 'Incremento de Produtividade', 'Comente os impactos econômicos em relação ao incremento de produtividade. Recomendado: até 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_reducao_custos', 'Redução de Custos', 'Comente os impactos econômicos em relação à redução de custos. Recomendado: até 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_expansao_area', 'Expansão da Produção em Novas Áreas', 'Comente os impactos econômicos em relação à expansão da produção em novas áreas. Recomendado: até 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_agregacao_valor', 'Agregação de Valor', 'Comente os impactos econômicos em relação à agregação de valor. Recomendado: até 3.000 caracteres. Os valores são informados na seção 4.')}
+      {campo('econ_memoria_calculo', 'Memória de cálculo', 'Demonstre como os impactos econômicos foram estimados (metodologia do excedente econômico), comparando com a tecnologia anterior, e explique como foram obtidos os números informados na seção 4. Recomendado: até 3.000 caracteres.')}
       {campo('econ_fontes', 'Fontes de dados', 'Informe as fontes dos dados e o procedimento de coleta (entrevistas a produtores, levantamentos da equipe ou de outras instituições, cooperativas etc.). Se consultou usuários, informe o nº de entrevistas e o perfil.')}
     </section>
   );
@@ -548,15 +649,16 @@ function PlanilhaComplementar() {
         itemPadrao={{ instituicao: '', funcao: '' }}
         textoAdicionar="+ Adicionar parceria"
         vazio="Nenhuma parceria informada (clique abaixo para adicionar)."
+        maxItens={MAX_PARCERIAS}
         renderItem={(i) => (
           <div className="grid">
             <Field label="Instituição" obrigatorio erro={errors.parcerias?.[i]?.instituicao?.message}>
               <input {...register(`parcerias.${i}.instituicao` as const)} />
             </Field>
-            <Field label="Função da entidade na parceria">
+            <Field label="Função da entidade na parceria" erro={errors.parcerias?.[i]?.funcao?.message}>
               <input {...register(`parcerias.${i}.funcao` as const)} />
             </Field>
-            <Field label="Valor investido pela entidade parceira (R$)">
+            <Field label="Valor investido pela entidade parceira (R$)" erro={errors.parcerias?.[i]?.valor_investido?.message}>
               <input type="number" step="any" min={0} {...register(`parcerias.${i}.valor_investido` as const, { valueAsNumber: true })} />
             </Field>
             <Field label="Participação no impacto observado (%)" erro={errors.parcerias?.[i]?.participacao_pct?.message}>

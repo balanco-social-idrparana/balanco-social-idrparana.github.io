@@ -19,10 +19,25 @@ const itemGradeSchema = z.object({
 
 export type ItemGrade = z.infer<typeof itemGradeSchema>;
 
-const textoObrig = (rotulo: string, max = 8000) =>
-  z.string().trim().min(1, `${rotulo} é obrigatório`).max(max);
+/** Recomendação exibida na UI ("Recomendado: até 3.000 caracteres"). */
+export const TEXTO_RECOMENDADO = 3000;
+/**
+ * Teto RÍGIDO de validação (espelha LIMITS.MAX_TEXTO_CAMPO no backend). Mantido
+ * em 8.000 e não em 3.000: o sistema está em produção e a planilha pode conter
+ * relatórios com 3.000–8.000 caracteres; validar em 3.000 impediria reeditá-los.
+ * A orientação de 3.000 é apenas recomendação de UI.
+ */
+const MAX_TEXTO_LONGO = 8000;
+/** Teto de parcerias (espelhado no backend, Dominio.gs). */
+export const MAX_PARCERIAS = 50;
 
-const textoOpc = (max = 8000) => z.string().trim().max(max).optional().default('');
+const textoObrig = (rotulo: string, max = MAX_TEXTO_LONGO) =>
+  z.string().trim()
+    .min(1, `${rotulo} é obrigatório`)
+    .max(max, `máximo de ${max.toLocaleString('pt-BR')} caracteres`);
+
+const textoOpc = (max = MAX_TEXTO_LONGO) =>
+  z.string().trim().max(max, `máximo de ${max.toLocaleString('pt-BR')} caracteres`).optional().default('');
 
 /**
  * Garante que a grade contém exatamente uma resposta para cada coeficiente
@@ -61,8 +76,8 @@ const pctOpc = z.preprocess(
 );
 
 const parceriaSchema = z.object({
-  instituicao: z.string().trim().min(1, 'informe a instituição'),
-  funcao: z.string().trim().max(300).optional().default(''),
+  instituicao: z.string().trim().min(1, 'informe a instituição').max(300, 'máximo de 300 caracteres'),
+  funcao: z.string().trim().max(300, 'máximo de 300 caracteres').optional().default(''),
   valor_investido: numOpc,
   participacao_pct: pctOpc,
 });
@@ -110,7 +125,7 @@ export const relatorioSchema = z.object({
   // Impactos gerais
   impactos_gerais: textoObrig('Impactos gerais na cadeia produtiva ou área'),
 
-  // Econômicos
+  // Econômicos (3.000 é recomendação de UI; validação rígida em 8.000)
   econ_produtividade: textoObrig('Incremento de produtividade'),
   econ_reducao_custos: textoObrig('Redução de custos'),
   econ_expansao_area: textoObrig('Expansão da produção em novas áreas'),
@@ -120,7 +135,7 @@ export const relatorioSchema = z.object({
 
   // Planilha complementar — Parcerias e impactos econômicos detalhados (opcional;
   // preencha o que se aplica). Substitui o preenchimento manual da planilha .xlsx.
-  parcerias: z.array(parceriaSchema).default([]),
+  parcerias: z.array(parceriaSchema).max(MAX_PARCERIAS, `máximo de ${MAX_PARCERIAS} parcerias`).default([]),
   econ_detalhe: econDetalheSchema,
 
   // Sociais (texto + grade)
