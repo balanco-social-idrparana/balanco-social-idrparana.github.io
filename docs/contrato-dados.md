@@ -8,16 +8,27 @@ Este documento é a **única fonte de verdade** dos nomes de campo. O schema do
 frontend (`form/src/schema/relatorio.ts`) e o schema da planilha
 (`apps-script/Sheets.gs`) DEVEM bater exatamente com os nomes abaixo.
 
-> Não há CNPJ/CPF/CEP. Não há consentimento LGPD (formulário interno). Defesa
-> anti-abuso: honeypot `hp_token` (nome neutro — `website_url` era autopreenchido
-> pelo navegador e bloqueava envios legítimos) + reCAPTCHA v3 (`recaptcha_token`) +
-> validação de `origin` + rate-limit, conforme `gestaodeater`.
+> Não há CNPJ/CPF/CEP. **LGPD**: a lei se aplica integralmente a órgãos
+> públicos; a base legal do tratamento é a execução de políticas públicas
+> (art. 7º, III e art. 23 da LGPD) — o consentimento é dispensado, mas o dever
+> de informação (art. 9º) é atendido por aviso de privacidade na landing e no
+> formulário. A retificação é feita pelo próprio autor via edição por
+> protocolo; a eliminação é procedimento operacional da equipe gestora
+> (remover as linhas do protocolo em todas as abas + anexos no Drive; backups
+> expiram em 8 semanas pela rotação automática).
+>
+> Defesa anti-abuso: reCAPTCHA v3 (`recaptcha_token`) verificado no servidor
+> (token + action + hostname; corte 0.1, ajustável via Script Property
+> `RECAPTCHA_MIN_SCORE`) + `origin` como fricção leve + rate-limits por
+> e-mail/IP com tetos globais (150 envios/h e 600 consultas/h no app inteiro) +
+> validação estrita de domínio/grades + magic bytes nos anexos + escape
+> anti-fórmula + `LockService`.
 
 ## Identificação do relatório
 
 Sem chave natural estável (o título não é garantido único). O backend gera um
-`protocolo` no primeiro envio e **acrescenta** uma nova linha por submissão
-(append-only).
+`protocolo` no primeiro envio — com **verificação de unicidade** contra os já
+gravados — e **acrescenta** uma nova linha por submissão (append-only).
 
 ```
 protocolo = 'BS2025-' + yyyyMMdd-HHmmss + '-' + random4
@@ -26,7 +37,7 @@ protocolo = 'BS2025-' + yyyyMMdd-HHmmss + '-' + random4
 ### Versionamento (editar pelo protocolo)
 
 O `protocolo` é estável; cada edição grava uma **nova versão** (`versao` = 1 no
-primeiro envio, `max(protocolo)+1` a cada edição). O histórico é preservado: a
+primeiro envio, `max(versao)+1` do protocolo a cada edição). O histórico é preservado: a
 versão "atual" é sempre a de maior `versao`. Linhas legadas (anteriores ao
 versionamento) têm `versao` em branco e contam como **v1**.
 
@@ -98,7 +109,9 @@ da edição corrente — versões anteriores nunca são tocadas.
 - `_log`: `timestamp`, `ip_hash`, `origin`, `acao`, `ref`, `detalhe`
 
 `valor` ∈ `{ '-3','-1','0','1','3','NA' }` (string). `NA` = "Não se aplica".
-`tipo` de anexo ∈ `{ 'foto_documento', 'planilha_complementar' }`.
+`tipo` de anexo ∈ `{ 'foto_documento', 'planilha_complementar' }` — o backend
+aceita ambos, mas a UI atual só envia `foto_documento` (os dados da planilha
+complementar são preenchidos na seção 4 do formulário).
 `tipo` de `econ_detalhe` ∈ `{ 'produtividade', 'reducao_custos', 'expansao', 'agregacao' }`.
 Campos calculados (`ganho_unitario`, `ganho_liquido`, `beneficio`) são derivados no
 backend com as mesmas fórmulas da planilha (ver `form/src/data/economia.ts`).
@@ -135,8 +148,7 @@ Todos os escalares acima (exceto os gerados pelo backend) + arrays:
   "amb_qualidade_produto_desc":"...", "amb_conclusao":"...",
   "grade_ambiental": [{ "aspecto":"eficiencia", "coeficiente":"Uso de energia", "valor":"NA" }, ...],
   "publicacoes": "...",
-  "anexos": [{ "tipo":"planilha_complementar", "nome":"...", "mime":"...", "base64":"..." }, ...],
-  "hp_token": "",               // honeypot (deve vir vazio; nome neutro p/ evitar autofill)
+  "anexos": [{ "tipo":"foto_documento", "nome":"...", "mime":"...", "base64":"..." }, ...],
   "recaptcha_token": "...",
   "origin": "https://balanco-social-idrparana.github.io"
 }
@@ -152,8 +164,21 @@ Todos os escalares acima (exceto os gerados pelo backend) + arrays:
 - Anexos são **opcionais** (parcerias e impactos econômicos agora são preenchidos
   no formulário). `parcerias` e `econ_detalhe` também são opcionais — preenche-se
   o que se aplica; `participacao_pct`/`participacao_idr` ∈ [0,100].
-- MIME permitido: planilha (`.xlsx`, `.xls`), PDF, JPEG, PNG. Limites de
-  tamanho em `apps-script/Config.gs`.
+- `parcerias`: máx. **50** linhas; textos de parceria com máx. **300** caracteres.
+- Campos de texto: teto server-side de **8.000 caracteres** por campo (o
+  cliente anuncia e valida **3.000** no `resumo` e nos 5 campos econômicos).
+  Estourar o teto do servidor responde `400`
+  `{ "erro": "campo excede o tamanho máximo", "campo": <nome>, "max": <limite> }`.
+- MIME permitido: planilha (`.xlsx`, `.xls`), PDF, JPEG, PNG — conferidos por
+  magic bytes no servidor. Limites (em `apps-script/Config.gs`): máx. **10
+  anexos** por envio, **10 MB** por arquivo e **32 MB decodificados** no total
+  do envio (o payload base64 em JSON fica ~33% maior e precisa caber no teto
+  prático de ~50 MB por requisição do Apps Script).
+- reCAPTCHA v3 verificado no servidor: token válido + action + **hostname**.
+- Rate-limits: por e-mail/IP e **tetos globais** (150 envios/edições/h e 600
+  consultas/h no app inteiro) — exceder qualquer um responde `429`. O limite
+  por e-mail só é **consumido após o sucesso da gravação** (uma submissão
+  rejeitada na validação não queima a janela de reenvio).
 
 ## Aspectos (chaves) e grupos de coeficientes
 

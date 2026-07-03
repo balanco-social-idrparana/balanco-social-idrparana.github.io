@@ -37,9 +37,12 @@ gera um **protocolo** e acrescenta uma nova linha por submissão (append-only):
 protocolo = BS2025-yyyyMMdd-HHmmss-<rand4>
 ```
 
-## Aba `relatorios` (principal — uma linha por relatório)
+## Aba `relatorios` (principal — uma linha por **versão**)
 
-A ordem das colunas abaixo é a ordem na planilha.
+O modelo é **append-only versionado**: o primeiro envio grava a v1 e cada
+edição pelo protocolo acrescenta uma nova linha (nova `versao`) do mesmo
+relatório — a versão "atual" é a de maior `versao`. A ordem das colunas abaixo
+é a ordem na planilha.
 
 | Coluna | Rótulo no formulário | Obrigatório | Observação |
 |---|---|---|---|
@@ -77,10 +80,16 @@ A ordem das colunas abaixo é a ordem na planilha.
 | `indice_ambiental` | — | calculado | Média dos coeficientes ambientais aplicáveis (ignora `NA`). |
 | `criado_em` | — | gerado | Timestamp do servidor. |
 | `status` | — | gerado | Inicia em `pendente_revisao`. |
+| `versao` | — | gerado | 1, 2, …; em branco = legado (conta como v1). |
 
-## Abas filhas (regravadas por `protocolo`)
+A coluna `versao` é a **última** coluna de `relatorios` e de todas as abas
+filhas versionadas — todas exceto `_log` — (acrescentada no fim para não
+deslocar dados legados; em branco = v1 nas linhas legadas).
 
-Quantas linhas surgem por relatório:
+## Abas filhas (regravadas por (`protocolo`, `versao`))
+
+A regravação substitui apenas o par (`protocolo`, `versao`) da edição corrente
+— as versões anteriores são preservadas. Quantas linhas surgem por relatório:
 
 - **`eixos`** — `protocolo`, `eixo`. Uma linha por eixo estratégico marcado
   (no mínimo um).
@@ -98,7 +107,8 @@ Quantas linhas surgem por relatório:
   agregacao }`; `ganho_unitario`/`ganho_liquido`/`beneficio` são calculados.
 - **`anexos`** — `protocolo`, `tipo`, `nome_arquivo`, `drive_file_id`,
   `tamanho_bytes`, `criado_em`. O `drive_file_id` não é exposto. `tipo` ∈
-  `{ foto_documento }` (fotos/documentos opcionais).
+  `{ foto_documento, planilha_complementar }` — o backend aceita ambos, mas a
+  UI atual só envia `foto_documento` (fotos/documentos opcionais).
 - **`_log`** — `timestamp`, `ip_hash`, `origin`, `acao`, `ref`, `detalhe`.
   Interno.
 
@@ -264,5 +274,5 @@ planilha, mas o formulário não oferece esse upload).
   (`NA` conta como resposta); nenhum coeficiente desconhecido.
 - `parcerias` e `econ_detalhe` são opcionais; valores numéricos ≥ 0 e
   percentuais em [0, 100]. Anexos são opcionais.
-- O campo oculto `hp_token` (honeypot; nome neutro para evitar autofill) deve vir
-  vazio; reCAPTCHA v3 (action `relatorio_bs`) válido e `origin` autorizado.
+- reCAPTCHA v3 válido (token + action + hostname verificados no servidor) e
+  `origin` autorizado.

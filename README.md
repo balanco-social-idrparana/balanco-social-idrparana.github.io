@@ -41,8 +41,15 @@ URL pública alvo: <https://balanco-social-idrparana.github.io> — o formulári
 - IDs e segredos (`SHEET_ID`, `DRIVE_FOLDER_ID`, `BACKUP_FOLDER_ID`,
   `RECAPTCHA_SECRET`, `ALLOWED_ORIGIN`, `IP_HASH_SALT`) ficam no Script
   Properties do Apps Script.
-- `doPost` valida honeypot (`website_url`), reCAPTCHA v3 (action
-  `relatorio_bs`), `origin` e aplica rate limit por IP.
+- `doPost` verifica o reCAPTCHA v3 **no servidor** (token + action +
+  hostname; corte 0.1 deliberadamente baixo por causa de rede corporativa,
+  ajustável via Script Property `RECAPTCHA_MIN_SCORE`), usa `origin` como
+  fricção leve e aplica rate-limits por e-mail/IP + **tetos globais**
+  (150 envios/h e 600 consultas/h no app inteiro).
+- Validação estrita de domínio/grades, magic bytes nos anexos, escape
+  anti-fórmula e `LockService` na gravação.
+- Backups semanais com rotação automática (cópias com mais de 8 semanas vão
+  para a lixeira).
 - Submissão é **append-only**: o backend gera um `protocolo`
   (`BS2025-yyyyMMdd-HHmmss-<rand4>`) e acrescenta uma linha por relatório.
 
