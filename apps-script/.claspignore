@@ -1,0 +1,6 @@
+# clasp publica todos os arquivos do rootDir por padrão. Os testes são código
+# Node (require/module.exports) e quebrariam o Web App em produção se enviados.
+tests/**
+**/*.test.js
+.clasp.example.json
+.claspignore

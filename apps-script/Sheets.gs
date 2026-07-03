@@ -40,6 +40,49 @@ var SCHEMA = {
   _log:            ['timestamp', 'ip_hash', 'origin', 'acao', 'ref', 'detalhe']
 };
 
+// Colunas que recebem formato de TEXTO simples ('@'): sem isto o Sheets
+// converte valores como "03/2021" em data e o round-trip de edição
+// (lerRelatorioCompleto → String()) devolveria o texto corrompido ao autor.
+// As demais colunas (numéricas/datas) permanecem no formato geral.
+var COLUNAS_TEXTO = {
+  relatorios: [
+    'protocolo', 'email', 'responsavel', 'titulo',
+    'diretoria_departamento', 'programa_projeto', 'coordenacao_equipe',
+    'ano_tecnologia', 'resumo', 'abrangencia_geografica', 'impactos_gerais',
+    'econ_produtividade', 'econ_reducao_custos', 'econ_expansao_area',
+    'econ_agregacao_valor', 'econ_memoria_calculo', 'econ_fontes',
+    'social_emprego_desc', 'social_renda_desc', 'social_bemestar_desc',
+    'social_gestao_desc', 'social_conclusao',
+    'amb_eficiencia_desc', 'amb_conservacao_desc', 'amb_recuperacao_desc',
+    'amb_bemestar_animal_desc', 'amb_qualidade_produto_desc', 'amb_conclusao',
+    'publicacoes', 'status'
+  ],
+  eixos:           ['protocolo', 'eixo'],
+  ods:             ['protocolo', 'ods'],
+  grade_social:    ['protocolo', 'aspecto', 'coeficiente', 'valor'],
+  grade_ambiental: ['protocolo', 'aspecto', 'coeficiente', 'valor'],
+  parcerias:       ['protocolo', 'instituicao', 'funcao'],
+  econ_detalhe:    ['protocolo', 'tipo', 'ano'],
+  anexos:          ['protocolo', 'tipo', 'nome_arquivo', 'drive_file_id'],
+  _log:            ['ip_hash', 'origin', 'acao', 'ref', 'detalhe']
+};
+
+/**
+ * Aplica formato '@' (texto simples) às colunas de texto da aba, nas linhas de
+ * dados. Linhas novas herdam o formato da coluna. Reexecutar configurarRecursos
+ * após mudanças de schema reaplica.
+ */
+function aplicarFormatoTexto_(aba, nome) {
+  var cols = SCHEMA[nome];
+  var texto = COLUNAS_TEXTO[nome] || [];
+  var linhas = Math.max(aba.getMaxRows() - 1, 1);
+  for (var i = 0; i < texto.length; i++) {
+    var idx = cols.indexOf(texto[i]);
+    if (idx < 0) continue;
+    aba.getRange(2, idx + 1, linhas, 1).setNumberFormat('@');
+  }
+}
+
 /** Versão efetiva de uma célula: em branco (linha legada) conta como 1. */
 function versaoEfetiva(v) {
   if (v === '' || v === null || v === undefined) return 1;
@@ -57,9 +100,11 @@ function abaPorNome(ss, nome) {
     aba = ss.insertSheet(nome);
     aba.appendRow(SCHEMA[nome]);
     aba.setFrozenRows(1);
+    aplicarFormatoTexto_(aba, nome);
   } else if (aba.getLastRow() === 0) {
     aba.appendRow(SCHEMA[nome]);
     aba.setFrozenRows(1);
+    aplicarFormatoTexto_(aba, nome);
   }
   return aba;
 }
@@ -85,6 +130,7 @@ function garantirCabecalho(ss, nome) {
   var cols = SCHEMA[nome];
   aba.getRange(1, 1, 1, cols.length).setValues([cols]);
   aba.setFrozenRows(1);
+  aplicarFormatoTexto_(aba, nome);
   return aba;
 }
 
@@ -316,15 +362,22 @@ function calcularIndice(itensGrade) {
 /**
  * Resumo PÚBLICO mínimo: apenas a contagem de relatórios. Nenhum dado
  * sensível é exposto (sem e-mails, sem títulos, sem anexos).
+ * Conta protocolos DISTINTOS — o modelo é append-only versionado (uma linha
+ * por versão), então contar linhas inflaria o total a cada edição.
  */
 function lerResumoPublico() {
   var ss = abrirPlanilha();
   var aba = abaPorNome(ss, 'relatorios');
   var dados = aba.getDataRange().getValues();
   var protCol = SCHEMA.relatorios.indexOf('protocolo');
-  var total = 0;
+  var protocolos = {};
   for (var i = 1; i < dados.length; i++) {
-    if (dados[i][protCol]) total++;
+    var p = dados[i][protCol];
+    if (p) protocolos[String(p)] = true;
+  }
+  var total = 0;
+  for (var k in protocolos) {
+    if (protocolos.hasOwnProperty(k)) total++;
   }
   return { total: total };
 }

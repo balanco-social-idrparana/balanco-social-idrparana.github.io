@@ -70,28 +70,45 @@ function exigirCampos(obj, campos) {
 
 /**
  * Verifica reCAPTCHA v3 com a API do Google.
- * Retorna { ok: bool, score: number }.
+ * Retorna { ok: bool, score: number }. Exige `action` E `hostname` corretos:
+ * um token sem eles foi emitido fora do fluxo/site legítimo.
  */
 function verificarRecaptcha(token, expectedAction) {
   if (!token) return { ok: false, score: 0 };
   var secret = cfg('RECAPTCHA_SECRET');
-  var resp = UrlFetchApp.fetch('https://www.google.com/recaptcha/api/siteverify', {
-    method: 'post',
-    payload: { secret: secret, response: token },
-    muteHttpExceptions: true
-  });
+  var resp;
+  try {
+    resp = UrlFetchApp.fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'post',
+      payload: { secret: secret, response: token },
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    // Falha de rede na verificação não pode virar 500 genérico: reprova
+    // de forma controlada (o cliente recebe 403 e pode tentar de novo).
+    return { ok: false, score: 0 };
+  }
   var json;
   try { json = JSON.parse(resp.getContentText()); } catch (e) { return { ok: false, score: 0 }; }
   if (!json.success) return { ok: false, score: 0 };
-  if (expectedAction && json.action && json.action !== expectedAction) return { ok: false, score: json.score || 0 };
+  if (expectedAction && json.action !== expectedAction) return { ok: false, score: json.score || 0 };
+  if (!validarHostnameRecaptcha(json.hostname)) return { ok: false, score: json.score || 0 };
   return { ok: (json.score || 0) >= LIMITS.RECAPTCHA_MIN_SCORE, score: json.score || 0 };
+}
+
+/** O host onde o token foi emitido precisa ser o host do site oficial. */
+function validarHostnameRecaptcha(hostname) {
+  if (!hostname) return false;
+  var host = cfg('ALLOWED_ORIGIN').replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
+  return String(hostname) === host;
 }
 
 /**
  * Origem da requisição. Apps Script não dá acesso confiável ao header Origin,
  * então o frontend envia `origin` no PRÓPRIO corpo — um chamador direto pode
  * forjá-lo. Isto é apenas uma fricção leve / dado de log, NÃO um controle de
- * segurança. A defesa real contra chamadores externos é o reCAPTCHA v3 + honeypot.
+ * segurança. A defesa real contra chamadores externos é o reCAPTCHA v3
+ * (token + action + hostname) combinado aos rate-limits, inclusive globais.
  */
 function validarOrigem(origin) {
   var allowed = cfg('ALLOWED_ORIGIN');
@@ -112,8 +129,15 @@ function hashIP(ip) {
 }
 
 /**
- * Rate limit por chave (e-mail ou IP) usando CacheService.
- * Para "N por hora" usamos um contador com TTL de 3600s.
+ * Rate limit por chave usando CacheService (contador com TTL). O
+ * read-increment-write não é atômico — chamar sempre SOB o ScriptLock.
+ *
+ * Dois modos de consumo:
+ *  - checarRateLimit: checa E consome na hora. Para contadores de TENTATIVA
+ *    (ex.: anti-enumeração do `carregar`), que devem contar mesmo em falha.
+ *  - rateLimitEstourado + incrementarRateLimit: checagem antes, consumo só
+ *    após a operação ter SUCESSO — uma falha 500 no meio do envio não pode
+ *    travar o reenvio legítimo pelos próximos 5 minutos.
  */
 function checarRateLimit(chave, limite, ttlSeg) {
   var cache = CacheService.getScriptCache();
@@ -121,4 +145,27 @@ function checarRateLimit(chave, limite, ttlSeg) {
   if (atual >= limite) return false;
   cache.put(chave, String(atual + 1), ttlSeg);
   return true;
+}
+
+/** true se a chave já atingiu o limite (não consome). */
+function rateLimitEstourado(chave, limite) {
+  var atual = parseInt(CacheService.getScriptCache().get(chave) || '0', 10);
+  return atual >= limite;
+}
+
+/** Registra um consumo na chave (chamar após a operação ter sucesso). */
+function incrementarRateLimit(chave, ttlSeg) {
+  var cache = CacheService.getScriptCache();
+  var atual = parseInt(cache.get(chave) || '0', 10);
+  cache.put(chave, String(atual + 1), ttlSeg);
+}
+
+/**
+ * Sufixo de janela horária fixa. O CacheService renova o TTL a cada put, então
+ * uma chave "por hora" com TTL 3600 nunca zeraria sob tráfego contínuo (somaria
+ * o dia inteiro). Anexar o bucket de hora ao nome faz cada hora usar uma chave
+ * nova — janela real, independente do TTL.
+ */
+function bucketHora() {
+  return Math.floor(Date.now() / 3600000);
 }

@@ -48,8 +48,26 @@ function configurarRecursos() {
   return 'configurado';
 }
 
-// Utilitário one-off: remove TODAS as linhas de dados (mantém cabeçalhos).
+/**
+ * Utilitário one-off: remove TODAS as linhas de dados (mantém cabeçalhos),
+ * inclusive o _log de auditoria. DESTRUTIVO — vive no mesmo projeto do Web App
+ * de produção, então exige uma guarda de uso único: defina a Script Property
+ * CONFIRMAR_LIMPEZA=SIM-APAGAR-TUDO imediatamente antes de executar. Um backup
+ * é gravado antes de apagar.
+ */
 function limparDadosDeTeste() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('CONFIRMAR_LIMPEZA') !== 'SIM-APAGAR-TUDO') {
+    throw new Error(
+      'Abortado: esta função apaga TODAS as linhas de TODAS as abas (inclusive _log). ' +
+      'Para confirmar, defina a Script Property CONFIRMAR_LIMPEZA=SIM-APAGAR-TUDO e execute de novo.'
+    );
+  }
+  // Backup ANTES de consumir a guarda: se o backup falhar (ex.: BACKUP_FOLDER_ID
+  // ausente), a guarda permanece e NADA é apagado — o operador corrige e repete.
+  backupSemanal();
+  props.deleteProperty('CONFIRMAR_LIMPEZA'); // guarda de uso único
+
   var ss = SpreadsheetApp.openById(cfg("SHEET_ID"));
   var abas = ["relatorios","eixos","ods","grade_social","grade_ambiental","parcerias","econ_detalhe","anexos","_log"];
   abas.forEach(function (n) {

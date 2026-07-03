@@ -24,6 +24,37 @@ var CAMPOS_OBRIGATORIOS = [
   'amb_bemestar_animal_desc', 'amb_qualidade_produto_desc', 'amb_conclusao'
 ];
 
+// Campos escalares OPCIONAIS que também têm teto de comprimento.
+var CAMPOS_OPCIONAIS = ['ano_tecnologia', 'publicacoes'];
+
+// Teto de comprimento por campo (os demais usam LIMITS.MAX_TEXTO_CAMPO). O
+// doPost é público: o Zod do frontend não protege contra um cliente forjado,
+// e uma célula >50.000 chars faria o Sheets lançar exceção tardia (500 com
+// anexos órfãos no Drive).
+var CAMPOS_MAX = {
+  email: 254,
+  responsavel: 200,
+  titulo: 300,
+  diretoria_departamento: 300,
+  programa_projeto: 300,
+  ano_tecnologia: 50
+};
+
+/** Primeiro campo que excede o tamanho máximo, ou null se todos ok. */
+function validarTamanhos(corpo) {
+  var campos = CAMPOS_OBRIGATORIOS.concat(CAMPOS_OPCIONAIS);
+  for (var i = 0; i < campos.length; i++) {
+    var c = campos[i];
+    var v = corpo[c];
+    if (v === undefined || v === null) continue;
+    var max = CAMPOS_MAX[c] || LIMITS.MAX_TEXTO_CAMPO;
+    if (String(v).length > max) {
+      return { erro: 'campo excede o tamanho máximo', campo: c, max: max };
+    }
+  }
+  return null;
+}
+
 function doPost(e) {
   try {
     var corpo = parseCorpo(e);
@@ -74,13 +105,29 @@ function processarCarregar(corpo, ipHash) {
   if (!validarProtocolo(corpo.protocolo)) return resposta(400, { erro: 'protocolo inválido' });
   if (!validarEmail(corpo.email)) return resposta(400, { erro: 'e-mail inválido' });
 
-  // Rate-limit de leitura (anti-enumeração), por e-mail e por IP.
-  var chaveEmail = 'rl:load:' + hashIP(normalizarEmail(corpo.email));
-  if (!checarRateLimit(chaveEmail, LIMITS.RATE_LOAD_PER_EMAIL_HOURLY, 3600)) {
-    return resposta(429, { erro: 'muitas consultas; tente novamente mais tarde' });
+  // Rate-limit de leitura (anti-enumeração): contadores de TENTATIVA — contam
+  // mesmo quando a consulta falha, por isso consomem já na checagem. Janela
+  // horária fixa (bucketHora) para não somar o dia inteiro.
+  //
+  // tryLock (curto) em vez de waitLock: o objetivo do lock é apenas tornar
+  // atômico o read-increment-write. Se um ENVIO grande estiver segurando o
+  // ScriptLock (upload de anexos), não vale 503-ar leitores legítimos — segue
+  // sem lock, aceitando a pequena imprecisão de um contador anti-enumeração.
+  var h = bucketHora();
+  var chaveEmail = 'rl:load:' + h + ':' + hashIP(normalizarEmail(corpo.email));
+  var lock = LockService.getScriptLock();
+  var comLock = false;
+  try { comLock = lock.tryLock(1500); } catch (e) { comLock = false; }
+  var passou;
+  try {
+    passou = checarRateLimit(chaveEmail, LIMITS.RATE_LOAD_PER_EMAIL_HOURLY, 3600) &&
+      (!corpo._ip || checarRateLimit('rl:loadip:' + h + ':' + ipHash, LIMITS.RATE_LOAD_PER_IP_HOURLY, 3600)) &&
+      checarRateLimit('rl:loadglobal:' + h, LIMITS.RATE_GLOBAL_LOAD_HOURLY, 3600);
+  } finally {
+    if (comLock) lock.releaseLock();
   }
-  if (corpo._ip && !checarRateLimit('rl:loadip:' + ipHash, LIMITS.RATE_LOAD_PER_IP_HOURLY, 3600)) {
-    return resposta(429, { erro: 'limite de consultas por hora atingido' });
+  if (!passou) {
+    return resposta(429, { erro: 'muitas consultas; tente novamente mais tarde' });
   }
 
   var ss = abrirPlanilha();
@@ -113,9 +160,12 @@ function processarEnvio(corpo, ipHash, acao) {
     return resposta(400, { erro: 'protocolo inválido' });
   }
 
-  // 4. Campos escalares obrigatórios
+  // 4. Campos escalares obrigatórios + teto de comprimento por campo.
   var faltando = exigirCampos(corpo, CAMPOS_OBRIGATORIOS);
   if (faltando.length) return resposta(400, { erro: 'campos obrigatórios faltando', campos: faltando });
+
+  var excedente = validarTamanhos(corpo);
+  if (excedente) return resposta(400, excedente);
 
   if (!validarEmail(corpo.email)) return resposta(400, { erro: 'e-mail inválido' });
 
@@ -143,14 +193,11 @@ function processarEnvio(corpo, ipHash, acao) {
   // Anexos são opcionais (a planilha é preenchida no próprio formulário).
   var anexos = Array.isArray(corpo.anexos) ? corpo.anexos : [];
 
-  // 8. Anexos — soma e limite total (cálculo de bytes desconta padding base64).
-  var totalBytes = 0;
-  for (var j = 0; j < anexos.length; j++) {
-    totalBytes += bytesDeBase64((anexos[j] && anexos[j].base64) || '');
-  }
-  if (totalBytes > LIMITS.MAX_TOTAL_BYTES) {
-    return resposta(413, { erro: 'tamanho total dos anexos excede o limite' });
-  }
+  // 8. Anexos — pré-validação COMPLETA (contagem, tipo, MIME, tamanho, magic
+  //    bytes) antes do lock e de qualquer gravação: um anexo inválido devolve
+  //    400 claro em vez de 500 com arquivos órfãos no Drive.
+  var erroAnexos = validarAnexos(anexos);
+  if (erroAnexos) return resposta(erroAnexos.status, erroAnexos.corpo);
 
   // 9. Lock para serializar escritas concorrentes E o rate-limit (o
   //    read-increment-write do CacheService não é atômico; sob lock vira-o).
@@ -159,55 +206,70 @@ function processarEnvio(corpo, ipHash, acao) {
     return resposta(503, { erro: 'sistema ocupado, tente novamente em instantes' });
   }
   try {
-    // Rate limit. No envio novo: 1 por e-mail a cada 5 min (anti-spam). Na
-    // edição: limite por hora (permite corrigir o próprio relatório sem esperar
-    // 5 min entre salvamentos). Sempre também por IP, quando houver IP real.
+    var h = bucketHora();
+    // Consumo APÓS sucesso: apenas o cooldown de 5 min do envio NOVO — um 500
+    // no meio do fluxo não pode trancar o reenvio legítimo por 5 minutos. Os
+    // demais contadores (edit, ip, global) são anti-abuso e consomem JÁ na
+    // checagem (uma tentativa que falha ainda conta), com janela horária real.
+    var consumoAposSucesso = [];
     if (editando) {
-      var chaveEdit = 'rl:edit:' + hashIP(normalizarEmail(corpo.email));
+      // Anti-probe: a edição chega aqui só com payload totalmente válido; o gate
+      // de autoria vem depois. Consumir na checagem limita sondagem por e-mail.
+      var chaveEdit = 'rl:edit:' + h + ':' + hashIP(normalizarEmail(corpo.email));
       if (!checarRateLimit(chaveEdit, LIMITS.RATE_EDIT_PER_EMAIL_HOURLY, 3600)) {
         return resposta(429, { erro: 'muitas edições; tente novamente mais tarde' });
       }
     } else {
       var chaveEmail = 'rl:email:' + hashIP(normalizarEmail(corpo.email));
-      if (!checarRateLimit(chaveEmail, 1, LIMITS.RATE_PER_EMAIL_SECONDS)) {
+      if (rateLimitEstourado(chaveEmail, 1)) {
         return resposta(429, { erro: 'aguarde antes de reenviar com este e-mail' });
       }
+      consumoAposSucesso.push([chaveEmail, LIMITS.RATE_PER_EMAIL_SECONDS]);
     }
     // Só aplica o limite por IP quando há IP real. O Apps Script não expõe o IP
     // do cliente e o frontend não o envia, então hashIP('') seria constante —
     // sem este guard, o limite viraria um teto GLOBAL para toda a rede.
     if (corpo._ip) {
-      if (!checarRateLimit('rl:ip:' + ipHash, LIMITS.RATE_PER_IP_HOURLY, 3600)) {
+      if (!checarRateLimit('rl:ip:' + h + ':' + ipHash, LIMITS.RATE_PER_IP_HOURLY, 3600)) {
         return resposta(429, { erro: 'limite de envios por hora atingido' });
       }
+    }
+    // Teto GLOBAL por hora — freio real contra spam. Consome na checagem (só
+    // payloads válidos chegam aqui; validação e reCAPTCHA já passaram), logo
+    // não é exaurível por floods de lixo. e-mail/IP são contornáveis; este não.
+    if (!checarRateLimit('rl:global:' + h, LIMITS.RATE_GLOBAL_HOURLY, 3600)) {
+      registrarLogSeguro(ipHash, corpo.origin, 'global_rate', '', '');
+      return resposta(429, { erro: 'limite de envios do sistema atingido; tente novamente mais tarde' });
     }
 
     var ss = abrirPlanilha();
 
     // Define protocolo e versão. Na edição, exige autoria (e-mail bate com a
-    // última versão) e incrementa a versão preservando o histórico.
+    // última versão) e incrementa a versão preservando o histórico. As duas
+    // falhas de autorização devolvem o MESMO 404 (como no carregar) para não
+    // revelar se um protocolo existe a quem não é o autor.
     var protocolo, versao, versaoAnterior;
     if (editando) {
       versaoAnterior = maxVersao(ss, corpo.protocolo);
-      if (versaoAnterior === 0) {
-        return resposta(404, { erro: 'protocolo não encontrado' });
-      }
-      var emailReal = emailDaUltimaVersao(ss, corpo.protocolo);
-      if (!emailReal || normalizarEmail(emailReal) !== normalizarEmail(corpo.email)) {
+      var emailReal = versaoAnterior === 0 ? '' : emailDaUltimaVersao(ss, corpo.protocolo);
+      if (versaoAnterior === 0 || !emailReal ||
+          normalizarEmail(emailReal) !== normalizarEmail(corpo.email)) {
         registrarLogSeguro(ipHash, corpo.origin, 'editar_negado', corpo.protocolo, mascararEmail(corpo.email));
-        return resposta(403, { erro: 'e-mail não corresponde ao autor deste protocolo' });
+        return resposta(404, { erro: 'protocolo não encontrado para este e-mail' });
       }
       protocolo = corpo.protocolo;
       versao = versaoAnterior + 1;
     } else {
-      protocolo = gerarProtocolo();
+      protocolo = gerarProtocoloUnico(ss);
       versao = 1;
       versaoAnterior = 0;
     }
 
     // 11. Anexos. Novos uploads são salvos (fail-fast em arquivos suspeitos). Na
     //     edição sem upload, herda os anexos da versão anterior (carry-forward).
+    //     Em falha parcial, os arquivos já criados vão para a lixeira (sem órfãos).
     var anexosSalvos = [];
+    var anexosNovos = false;
     if (editando && anexos.length === 0) {
       anexosSalvos = filhasDaVersao(ss, 'anexos', protocolo, versaoAnterior).map(function (x) {
         return {
@@ -219,9 +281,15 @@ function processarEnvio(corpo, ipHash, acao) {
         };
       });
     } else if (anexos.length) {
+      anexosNovos = true;
       var pasta = pastaDoProtocolo(protocolo);
-      for (var k = 0; k < anexos.length; k++) {
-        anexosSalvos.push(salvarAnexo(pasta, anexos[k]));
+      try {
+        for (var k = 0; k < anexos.length; k++) {
+          anexosSalvos.push(salvarAnexo(pasta, anexos[k]));
+        }
+      } catch (errAnexo) {
+        lixeiraAnexos(anexosSalvos);
+        return resposta(400, { erro: 'falha ao processar um dos anexos; verifique os arquivos e tente novamente' });
       }
     }
 
@@ -267,16 +335,42 @@ function processarEnvio(corpo, ipHash, acao) {
       indice_ambiental: indiceAmbiental
       // criado_em e status são definidos por appendRelatorio.
     };
-    appendRelatorio(ss, registro);
+    // 14. Escrita versionada: TODAS as abas filhas primeiro, a linha-pai em
+    //     `relatorios` por ÚLTIMO. A versão só passa a existir para leitores
+    //     (maxVersao/lerRelatorioCompleto partem de `relatorios`) quando está
+    //     completa — uma falha no meio não deixa versão corrompida visível.
+    var filhas = [
+      ['eixos', mapearEixos(corpo.eixos)],
+      ['ods', mapearOds(corpo.ods)],
+      ['grade_social', corpo.grade_social],
+      ['grade_ambiental', corpo.grade_ambiental],
+      ['parcerias', Array.isArray(corpo.parcerias) ? corpo.parcerias : []],
+      ['econ_detalhe', econ.linhas],
+      ['anexos', anexosSalvos]
+    ];
+    try {
+      for (var f = 0; f < filhas.length; f++) {
+        replaceFilhasVersao(ss, filhas[f][0], protocolo, versao, filhas[f][1]);
+      }
+      appendRelatorio(ss, registro);
+    } catch (errEscrita) {
+      // Melhor esforço: remove as linhas-filhas já gravadas desta versão e os
+      // anexos recém-criados, para a falha não deixar resíduo.
+      for (var g = 0; g < filhas.length; g++) {
+        try { replaceFilhasVersao(ss, filhas[g][0], protocolo, versao, []); } catch (e3) {}
+      }
+      if (anexosNovos) lixeiraAnexos(anexosSalvos);
+      throw errEscrita;
+    }
 
-    // 14. Abas filhas desta versão (não tocam em outras versões).
-    replaceFilhasVersao(ss, 'eixos', protocolo, versao, mapearEixos(corpo.eixos));
-    replaceFilhasVersao(ss, 'ods', protocolo, versao, mapearOds(corpo.ods));
-    replaceFilhasVersao(ss, 'grade_social', protocolo, versao, corpo.grade_social);
-    replaceFilhasVersao(ss, 'grade_ambiental', protocolo, versao, corpo.grade_ambiental);
-    replaceFilhasVersao(ss, 'parcerias', protocolo, versao, Array.isArray(corpo.parcerias) ? corpo.parcerias : []);
-    replaceFilhasVersao(ss, 'econ_detalhe', protocolo, versao, econ.linhas);
-    replaceFilhasVersao(ss, 'anexos', protocolo, versao, anexosSalvos);
+    // Consumo pós-sucesso (só o cooldown de 5 min). Melhor esforço: uma falha
+    // do CacheService aqui não pode virar 500 num relatório JÁ gravado (o
+    // cliente reenviaria e duplicaria).
+    try {
+      for (var rl = 0; rl < consumoAposSucesso.length; rl++) {
+        incrementarRateLimit(consumoAposSucesso[rl][0], consumoAposSucesso[rl][1]);
+      }
+    } catch (eRl) { /* consumo de rate-limit nunca derruba um envio gravado */ }
 
     registrarLogSeguro(ipHash, corpo.origin, editando ? 'relatorio_editado' : 'relatorio_ok',
                        protocolo + (editando ? ' v' + versao : ''), mascararEmail(corpo.email));
@@ -376,11 +470,14 @@ function gravarDiagnosticoDuplicatas() {
   an.gruposDuplicados.forEach(function (grp) {
     g++;
     grp.protocolos.forEach(function (o) {
+      // escaparCelula: estes valores vêm do usuário e este caminho grava via
+      // setValues direto — sem o escape, um titulo "=IMPORTXML(...)" viraria
+      // fórmula na aba que o operador abre para revisar.
       linhas.push([
         g, o.protocolo === grp.manter ? 'MANTER' : 'APAGAR',
-        o.email, o.titulo, o.protocolo,
+        escaparCelula(o.email), escaparCelula(o.titulo), escaparCelula(o.protocolo),
         o.versoes.sort(function (a, b) { return a - b; }).join(','),
-        fmtMs_(o.latestMs), o.status, o.responsavel
+        fmtMs_(o.latestMs), escaparCelula(o.status), escaparCelula(o.responsavel)
       ]);
     });
   });
@@ -410,23 +507,33 @@ function apagarProtocoloTudo_(ss, protocolo) {
 // Passo 2 (DESTRUTIVO): remove os protocolos marcados APAGAR (os não-mais-recentes
 // de cada grupo) em TODAS as abas. Rode só depois de revisar `_diag_duplicatas`.
 function removerDuplicatasSugeridas() {
-  var ss = abrirPlanilha();
-  var an = analisarDuplicatas();
-  var aRemover = [];
-  an.gruposDuplicados.forEach(function (grp) {
-    grp.protocolos.forEach(function (o) { if (o.protocolo !== grp.manter) aRemover.push(o.protocolo); });
-  });
-  var totalLinhas = 0;
-  aRemover.forEach(function (pr) { totalLinhas += apagarProtocoloTudo_(ss, pr); });
-  try { CacheService.getScriptCache().remove('publico:resumo'); } catch (e) {}
-  var msg = 'Removidos ' + aRemover.length + ' protocolo(s): ' +
-            (aRemover.join(', ') || '(nenhum)') + ' | linhas apagadas: ' + totalLinhas;
-  Logger.log(msg);
-  return msg;
+  // Mesmo lock do Web App: deleteRow concorrendo com um doPost em produção
+  // deslocaria índices de linha no meio da escrita.
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = abrirPlanilha();
+    var an = analisarDuplicatas();
+    var aRemover = [];
+    an.gruposDuplicados.forEach(function (grp) {
+      grp.protocolos.forEach(function (o) { if (o.protocolo !== grp.manter) aRemover.push(o.protocolo); });
+    });
+    var totalLinhas = 0;
+    aRemover.forEach(function (pr) { totalLinhas += apagarProtocoloTudo_(ss, pr); });
+    try { CacheService.getScriptCache().remove('publico:resumo'); } catch (e) {}
+    var msg = 'Removidos ' + aRemover.length + ' protocolo(s): ' +
+              (aRemover.join(', ') || '(nenhum)') + ' | linhas apagadas: ' + totalLinhas;
+    Logger.log(msg);
+    return msg;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
  * Snapshot semanal — instalar como trigger time-based (Edit → Current project's triggers).
+ * Mantém apenas as últimas LIMITS.BACKUP_RETENCAO_SEMANAS cópias (LGPD: não
+ * acumular indefinidamente cópias integrais com e-mails crus).
  */
 function backupSemanal() {
   var origem = DriveApp.getFileById(cfg('SHEET_ID'));
@@ -435,6 +542,21 @@ function backupSemanal() {
   var copia = origem.makeCopy(nome, destino);
   // A cópia contém e-mails crus (coluna `email`). Garante não-compartilhamento (LGPD).
   try { copia.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE); } catch (e) {}
+  removerBackupsAntigos_(destino);
+}
+
+/** Lixeira para backups além do prazo de retenção. */
+function removerBackupsAntigos_(pasta) {
+  var corte = new Date(Date.now() - LIMITS.BACKUP_RETENCAO_SEMANAS * 7 * 24 * 3600 * 1000);
+  var arquivos = pasta.getFiles();
+  while (arquivos.hasNext()) {
+    var f = arquivos.next();
+    try {
+      if (f.getName().indexOf('backup-') === 0 && f.getDateCreated() < corte) {
+        f.setTrashed(true);
+      }
+    } catch (e) { /* melhor esforço: um arquivo problemático não para a rotação */ }
+  }
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -478,6 +600,76 @@ function gerarProtocolo() {
   var ts = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyyMMdd-HHmmss');
   var rand = Math.floor(1000 + Math.random() * 9000); // 4 dígitos
   return 'BS2025-' + ts + '-' + rand;
+}
+
+/**
+ * Gera protocolo garantindo unicidade contra a planilha. Deve rodar SOB o
+ * ScriptLock do envio (senão dois envios no mesmo segundo poderiam colidir
+ * entre a checagem e o append). O protocolo não é segredo — a autorização de
+ * leitura/edição exige também o e-mail do autor.
+ */
+function gerarProtocoloUnico(ss) {
+  for (var i = 0; i < 5; i++) {
+    var p = gerarProtocolo();
+    if (maxVersao(ss, p) === 0) return p;
+  }
+  throw new Error('não foi possível gerar protocolo único após 5 tentativas');
+}
+
+/**
+ * Pré-validação completa dos anexos ANTES do lock e de qualquer gravação.
+ * Retorna { status, corpo } para responder, ou null se tudo ok.
+ */
+function validarAnexos(anexos) {
+  if (anexos.length > LIMITS.MAX_ANEXOS) {
+    return { status: 400, corpo: { erro: 'número de anexos excede o limite de ' + LIMITS.MAX_ANEXOS } };
+  }
+  var totalBytes = 0;
+  for (var i = 0; i < anexos.length; i++) {
+    var a = anexos[i] || {};
+    if (!a.base64) return { status: 400, corpo: { erro: 'anexo vazio', indice: i } };
+    if (TIPOS_ANEXO_PERMITIDOS.indexOf(a.tipo) < 0) {
+      return { status: 400, corpo: { erro: 'tipo de anexo inválido', indice: i } };
+    }
+    if (LIMITS.ALLOWED_MIME.indexOf(a.mime) < 0) {
+      return { status: 400, corpo: { erro: 'formato de arquivo não permitido', indice: i } };
+    }
+    var bytes = bytesDeBase64(a.base64);
+    if (bytes > LIMITS.MAX_FILE_BYTES) {
+      return { status: 413, corpo: { erro: 'arquivo excede o limite de 10 MB', indice: i } };
+    }
+    if (!magicBytesConferem(a.base64, a.mime)) {
+      return { status: 400, corpo: { erro: 'conteúdo do arquivo não corresponde ao tipo declarado', indice: i } };
+    }
+    totalBytes += bytes;
+  }
+  if (totalBytes > LIMITS.MAX_TOTAL_BYTES) {
+    return { status: 413, corpo: { erro: 'tamanho total dos anexos excede o limite' } };
+  }
+  return null;
+}
+
+/** Decodifica só o prefixo do base64 (12 chars → 9 bytes) p/ checar magic bytes. */
+function magicBytesConferem(base64, mime) {
+  var prefixo = String(base64).substring(0, 12);
+  if (prefixo.length < 12) return false; // arquivo minúsculo demais p/ ser válido
+  try {
+    var bytes = Utilities.base64Decode(prefixo).map(function (b) { return b < 0 ? b + 256 : b; });
+    return checarMagicBytes(bytes, mime);
+  } catch (e) {
+    return false; // base64 malformado
+  }
+}
+
+/** Move para a lixeira os arquivos de anexos já criados (limpeza de falha parcial). */
+function lixeiraAnexos(anexosSalvos) {
+  for (var i = 0; i < anexosSalvos.length; i++) {
+    try {
+      if (anexosSalvos[i] && anexosSalvos[i].drive_file_id) {
+        DriveApp.getFileById(anexosSalvos[i].drive_file_id).setTrashed(true);
+      }
+    } catch (e) { /* melhor esforço */ }
+  }
 }
 
 /** Mascara o e-mail para o log de auditoria (não logar e-mail cru). */
