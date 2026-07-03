@@ -31,6 +31,16 @@ jobs:
         working-directory: form
         run: npm ci
 
+      # Secret renomeado/perdido resolve para string vazia e o build "passa" —
+      # o site quebraria só em runtime. Falha aqui, antes de publicar.
+      - name: Validar secrets do build
+        env:
+          API: ${{ secrets.VITE_API_URL }}
+          KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
+        run: |
+          test -n "$API" || { echo "::error::secret VITE_API_URL ausente/vazio"; exit 1; }
+          test -n "$KEY" || { echo "::error::secret VITE_RECAPTCHA_SITE_KEY ausente/vazio"; exit 1; }
+
       - name: Build form
         working-directory: form
         env:
