@@ -210,11 +210,6 @@ export function App() {
   return (
     <FormProvider {...metodos}>
       <EdicaoContext.Provider value={edicao}>
-      <div className="marca-topo">
-        <div className="marca-inner">
-          <img src={`${BASE}idr-gov-seab-h.webp`} alt="IDR-Paraná · Governo do Estado do Paraná · Secretaria da Agricultura e do Abastecimento" />
-        </div>
-      </div>
       <div className="faixa-acento" />
 
       <div className="container">
@@ -318,7 +313,6 @@ export function App() {
       </div>
 
       <footer className="rodape-inst">
-        <img src={`${BASE}idr-gov-seab-h.webp`} alt="" />
         <p><strong>IDR-Paraná</strong> — Instituto de Desenvolvimento Rural do Paraná (IAPAR-EMATER)</p>
         <p>Secretaria da Agricultura e do Abastecimento · Governo do Estado do Paraná</p>
         <p>Grupo Gestor do Balanço Social 2025</p>

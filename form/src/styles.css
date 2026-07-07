@@ -21,17 +21,6 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--cor-fundo); line-height: 1.6; }
 
-/* ─── Barra institucional (logotipo) ─────────────────────────────────────── */
-.marca-topo {
-  background: #fff;
-  border-bottom: 1px solid var(--cor-borda);
-  box-shadow: 0 1px 0 rgba(16,40,24,.03);
-}
-.marca-topo .marca-inner {
-  max-width: 960px; margin: 0 auto; padding: 14px 16px;
-  display: flex; align-items: center; gap: 16px;
-}
-.marca-topo img { height: 50px; width: auto; max-width: 100%; }
 /* faixa de acento com o gradiente verde→azul da marca */
 .faixa-acento { height: 4px; background: linear-gradient(90deg, var(--verde-vivo), var(--cor-acento)); }
 
@@ -177,12 +166,10 @@ input.calculado.destaque { background: #e7f3ec; color: var(--cor-primaria); font
   border-top: 1px solid var(--cor-borda); margin-top: 8px;
   padding: 22px 16px 36px; text-align: center; color: var(--cor-texto-suave); font-size: 0.85rem;
 }
-.rodape-inst img { height: 38px; width: auto; opacity: .92; margin-bottom: 10px; }
 .rodape-inst p { margin: 4px 0; }
 .rodape-inst strong { color: var(--cor-texto); }
 
 @media (max-width: 600px) {
   .cabecalho h1 { font-size: 1.4rem; }
-  .marca-topo img { height: 40px; }
   .cartao { padding: 18px; }
 }
