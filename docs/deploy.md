@@ -39,8 +39,8 @@ por `configurarRecursos` (ou no primeiro envio), conforme o esquema em
 
 1. Em <https://script.google.com> → **Novo projeto**.
 2. Cole o conteúdo de **todos** os arquivos de `apps-script/` — `Code.gs`,
-   `Sheets.gs`, `Drive.gs`, `Validacao.gs`, `Dominio.gs`, `Config.gs` e
-   `Setup.gs` — em arquivos com os mesmos nomes no editor.
+   `Sheets.gs`, `Drive.gs`, `Validacao.gs`, `Dominio.gs`, `Config.gs`,
+   `Setup.gs` e `Importar2024.gs` — em arquivos com os mesmos nomes no editor.
 3. Substitua o `appsscript.json` pelo do repositório (*Configurações do projeto*
    → marcar "Mostrar arquivo de manifesto appsscript.json no editor").
 4. *Configurações do projeto → Propriedades do script* — adicione:
@@ -78,8 +78,8 @@ lista nenhum arquivo de `tests/`.
 ### Como o backend defende o envio
 
 A submissão é append-only: o `doPost` verifica o reCAPTCHA v3 **no servidor** —
-token + action (`relatorio_bs` em envio/edição, `carregar_bs` ao carregar) +
-hostname. O corte de score é deliberadamente baixo (**0.1**): em rede
+token + action (`relatorio_bs` em envio/edição; `carregar_bs` nas leituras:
+carregar, `listar2024` e `carregar2024`) + hostname. O corte de score é deliberadamente baixo (**0.1**): em rede
 corporativa (muitos usuários reais atrás do mesmo IP/proxy) um corte alto
 reprovava pessoas reais; é ajustável sem deploy via Script Property
 `RECAPTCHA_MIN_SCORE`. Completam a defesa: `origin` como fricção leve,
@@ -142,6 +142,41 @@ No projeto do Apps Script (passo 2):
    rotação automática: cópias mais antigas que **8 semanas** vão para a lixeira
    (`LIMITS.BACKUP_RETENCAO_SEMANAS` em `apps-script/Config.gs`).
 
+## 5.1 Reaproveitamento dos relatórios de 2024 (opcional)
+
+Permite que o autor de um relatório de 2024 comece um relatório **novo** de 2025
+já preenchido com os dados do ano anterior (só revisa e atualiza o que mudou).
+Como 2024 não tinha protocolo, a busca é por **e-mail**: o formulário lista os
+relatórios daquele e-mail e o autor escolhe qual reaproveitar.
+
+Os dados de 2024 ficam num **snapshot** na aba `import_2024` do banco, populado
+uma vez pela função de manutenção `importar2024` (`apps-script/Importar2024.gs`).
+Depois de importado, o recurso não depende mais da planilha original.
+
+1. *Configurações do projeto → Propriedades do script* — adicione:
+   - `IMPORT_2024_SHEET_ID` — ID da **Planilha Google** de respostas de 2024.
+     `SpreadsheetApp.openById` só abre Planilhas Google nativas; se a fonte for
+     um `.xlsx`, abra-a e faça *Arquivo → Salvar como Planilhas Google*, e use o
+     ID da cópia.
+   - `IMPORT_2024_TAB` *(opcional)* — nome da aba de respostas detalhadas.
+     Padrão: `Respostas ao formulário 2`.
+2. A conta que roda o script precisa ter acesso de leitura a essa planilha.
+3. No editor, execute **`importar2024`** uma vez. Ele valida o cabeçalho (âncoras
+   de coluna), mapeia cada linha para o formato de 2025 e grava em `import_2024`.
+   O log informa quantos relatórios foram importados e eventuais avisos
+   (e-mails ausentes, registros truncados). É **idempotente**: reexecutar
+   reescreve a aba do zero.
+4. *Implantar → Gerenciar implantações → Editar → Nova versão* (reaproveita a URL
+   `/exec`). No reCAPTCHA admin nada muda (as ações `listar2024`/`carregar2024`
+   usam a action `carregar_bs`, já registrada). Rebuild/redeploy do frontend.
+
+O que **não** é importado (o autor completa no formulário de 2025): as conclusões
+social e ambiental, as parcerias (em 2024 eram texto livre; em 2025 é lista
+estruturada), os valores econômicos detalhados (seção 4) e os anexos. Coeficientes
+de grade sem resposta em 2024 ficam em branco. Privacidade (LGPD): `import_2024`
+guarda e-mails e textos; as ações web só devolvem os relatórios cujo e-mail bate
+com o informado (o autor só vê os próprios).
+
 ## 6. Verificações pós-deploy
 
 - [ ] Abrir o formulário em `/form/` e enviar um relatório fictício completo.
@@ -162,6 +197,10 @@ No projeto do Apps Script (passo 2):
       `relatorios` com mesmo `protocolo` e `versao=2`, e abas filhas com `versao=2`
       (as linhas `versao=1` permanecem intactas).
 - [ ] Tentar carregar com e-mail errado → `404` ("não encontrado para este e-mail").
+- [ ] *(Se usar o import de 2024)* No formulário, abrir "Preencheu um relatório em
+      2024? Reaproveitar os dados", informar um e-mail com relatórios de 2024 →
+      a lista aparece; escolher um → o formulário abre pré-preenchido como
+      relatório **novo** (sem protocolo, com o aviso de revisão).
 
 ## 6.1 Atualizar um deployment já existente (migração do versionamento)
 

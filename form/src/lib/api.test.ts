@@ -2,8 +2,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   arquivoParaAnexo, bytesDeBase64, inferirMime, postar,
-  enviarRelatorio, MAX_FILE_BYTES, MAX_ANEXOS, AnexoPayload,
+  enviarRelatorio, listar2024, carregar2024, MAX_FILE_BYTES, MAX_ANEXOS, AnexoPayload,
 } from './api';
+
+// reCAPTCHA depende do script do Google (indisponível em teste); devolve um token fixo.
+vi.mock('./recaptcha', () => ({
+  executarRecaptcha: vi.fn(async (action: string) => `token-${action}`),
+}));
 
 function anexoFake(nome: string): AnexoPayload {
   return { tipo: 'foto_documento', nome, mime: 'application/pdf', base64: btoa('%PDF-1.4') };
@@ -91,6 +96,39 @@ describe('postar', () => {
     const r = await postar<{ ok: boolean; erro?: string }>({});
     expect(r.ok).toBe(false);
     expect(r.erro).toBe('resposta inválida do servidor');
+  });
+});
+
+describe('reaproveitamento de 2024', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('listar2024 envia a ação correta e devolve os itens', async () => {
+    const fetchSpy = vi.fn(() =>
+      Promise.resolve({ text: () => Promise.resolve(JSON.stringify({ ok: true, itens: [{ id: 'BS2024-001', titulo: 'Uva' }] })) })
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    const r = await listar2024('  Autor@IDR.pr.gov.br ');
+    expect(r.ok).toBe(true);
+    expect(r.itens?.[0].id).toBe('BS2024-001');
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.acao).toBe('listar2024');
+    expect(body.email).toBe('Autor@IDR.pr.gov.br'); // trim aplicado
+    expect(body.recaptcha_token).toBe('token-carregar_bs');
+  });
+
+  it('carregar2024 envia id + e-mail e devolve os dados', async () => {
+    const fetchSpy = vi.fn(() =>
+      Promise.resolve({ text: () => Promise.resolve(JSON.stringify({ ok: true, dados: { titulo: 'Uva' } })) })
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    const r = await carregar2024('BS2024-001', 'autor@idr.pr.gov.br');
+    expect(r.ok).toBe(true);
+    expect(r.dados?.titulo).toBe('Uva');
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.acao).toBe('carregar2024');
+    expect(body.id).toBe('BS2024-001');
   });
 });
 

@@ -37,7 +37,14 @@ var SCHEMA = {
                     'ganho_unitario', 'participacao_idr', 'area',
                     'ganho_liquido', 'beneficio', 'outros_estados_ha', 'outros_paises_ha', 'versao'],
   anexos:          ['protocolo', 'tipo', 'nome_arquivo', 'drive_file_id', 'tamanho_bytes', 'criado_em', 'versao'],
-  _log:            ['timestamp', 'ip_hash', 'origin', 'acao', 'ref', 'detalhe']
+  _log:            ['timestamp', 'ip_hash', 'origin', 'acao', 'ref', 'detalhe'],
+  // Snapshot dos relatórios de 2024 (reaproveitamento). NÃO é versionado nem
+  // acessado no fluxo de envio: é populado por importar2024() (Importar2024.gs)
+  // e lido só pelas ações `listar2024`/`carregar2024`. `dados_json` guarda o
+  // RelatorioInput completo (pré-preenchimento); as demais colunas servem à
+  // listagem por e-mail.
+  import_2024:     ['id', 'email_norm', 'email', 'responsavel', 'titulo',
+                    'diretoria_departamento', 'programa_projeto', 'dados_json']
 };
 
 // Colunas que recebem formato de TEXTO simples ('@'): sem isto o Sheets
@@ -64,7 +71,9 @@ var COLUNAS_TEXTO = {
   parcerias:       ['protocolo', 'instituicao', 'funcao'],
   econ_detalhe:    ['protocolo', 'tipo', 'ano'],
   anexos:          ['protocolo', 'tipo', 'nome_arquivo', 'drive_file_id'],
-  _log:            ['ip_hash', 'origin', 'acao', 'ref', 'detalhe']
+  _log:            ['ip_hash', 'origin', 'acao', 'ref', 'detalhe'],
+  import_2024:     ['id', 'email_norm', 'email', 'responsavel', 'titulo',
+                    'diretoria_departamento', 'programa_projeto', 'dados_json']
 };
 
 /**

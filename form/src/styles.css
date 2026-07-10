@@ -101,6 +101,16 @@ button.remover:hover:not(:disabled) { background: #fdecea; }
 .carregar-editar[open] > summary::before { content: '▾ '; }
 .carregar-editar code { background: #f0f4f1; padding: 1px 6px; border-radius: 5px; }
 
+/* Lista de relatórios de 2024 para reaproveitamento. */
+.lista-2024 { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lista-2024 li {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 10px; border: 1px solid var(--cor-borda, #d8e0db); border-radius: var(--raio); background: #fbfdfc;
+}
+.lista-2024 li button { flex: 0 0 auto; padding: 6px 14px; }
+.lista-2024-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lista-2024-info .campo-ajuda { margin: 0; }
+
 .aviso-edicao {
   display: flex; gap: 16px; align-items: flex-start; justify-content: space-between;
   flex-wrap: wrap; background: #fff8e6; border: 1px solid #e6c65c; border-left: 4px solid #e6a700;
