@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
 
-const ARQUIVOS_GS = ['Config.gs', 'Dominio.gs', 'Validacao.gs', 'Sheets.gs', 'Drive.gs', 'Setup.gs', 'Code.gs'];
+const ARQUIVOS_GS = ['Config.gs', 'Dominio.gs', 'Validacao.gs', 'Sheets.gs', 'Importar2024.gs', 'Drive.gs', 'Setup.gs', 'Code.gs'];
 const CODIGO = ARQUIVOS_GS
   .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8'))
   .join('\n;\n');

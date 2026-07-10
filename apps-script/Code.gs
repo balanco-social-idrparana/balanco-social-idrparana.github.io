@@ -61,7 +61,7 @@ function doPost(e) {
     var ipHash = hashIP(corpo._ip || '');
     var acao = corpo.acao || 'enviar';
 
-    if (acao !== 'enviar' && acao !== 'editar' && acao !== 'carregar') {
+    if (['enviar', 'editar', 'carregar', 'listar2024', 'carregar2024'].indexOf(acao) < 0) {
       return resposta(400, { erro: 'ação inválida' });
     }
 
@@ -76,9 +76,11 @@ function doPost(e) {
     //    não havia sinal de bots e as demais defesas cobrem o caso, o honeypot
     //    foi desativado. Defesas ativas: reCAPTCHA v3 + origin + rate-limit.
 
-    // 3. reCAPTCHA v3 — ação esperada varia por operação. O score NÃO é
-    //    devolvido ao cliente (evita calibragem de bot).
-    var acaoCaptcha = acao === 'carregar' ? 'carregar_bs' : 'relatorio_bs';
+    // 3. reCAPTCHA v3 — ação esperada varia por operação. As operações de LEITURA
+    //    (carregar/listar2024/carregar2024) usam a mesma ação 'carregar_bs'. O
+    //    score NÃO é devolvido ao cliente (evita calibragem de bot).
+    var ehLeitura = acao === 'carregar' || acao === 'listar2024' || acao === 'carregar2024';
+    var acaoCaptcha = ehLeitura ? 'carregar_bs' : 'relatorio_bs';
     var captcha = verificarRecaptcha(corpo.recaptcha_token, acaoCaptcha);
     if (!captcha.ok) {
       registrarLogSeguro(ipHash, corpo.origin, 'recaptcha_baixo', '', String(captcha.score));
@@ -87,6 +89,8 @@ function doPost(e) {
 
     // 4. Dispatch.
     if (acao === 'carregar') return processarCarregar(corpo, ipHash);
+    if (acao === 'listar2024') return processarListar2024(corpo, ipHash);
+    if (acao === 'carregar2024') return processarCarregar2024(corpo, ipHash);
     return processarEnvio(corpo, ipHash, acao);
   } catch (err) {
     // Não vazar mensagens internas para o cliente.
@@ -105,28 +109,7 @@ function processarCarregar(corpo, ipHash) {
   if (!validarProtocolo(corpo.protocolo)) return resposta(400, { erro: 'protocolo inválido' });
   if (!validarEmail(corpo.email)) return resposta(400, { erro: 'e-mail inválido' });
 
-  // Rate-limit de leitura (anti-enumeração): contadores de TENTATIVA — contam
-  // mesmo quando a consulta falha, por isso consomem já na checagem. Janela
-  // horária fixa (bucketHora) para não somar o dia inteiro.
-  //
-  // tryLock (curto) em vez de waitLock: o objetivo do lock é apenas tornar
-  // atômico o read-increment-write. Se um ENVIO grande estiver segurando o
-  // ScriptLock (upload de anexos), não vale 503-ar leitores legítimos — segue
-  // sem lock, aceitando a pequena imprecisão de um contador anti-enumeração.
-  var h = bucketHora();
-  var chaveEmail = 'rl:load:' + h + ':' + hashIP(normalizarEmail(corpo.email));
-  var lock = LockService.getScriptLock();
-  var comLock = false;
-  try { comLock = lock.tryLock(1500); } catch (e) { comLock = false; }
-  var passou;
-  try {
-    passou = checarRateLimit(chaveEmail, LIMITS.RATE_LOAD_PER_EMAIL_HOURLY, 3600) &&
-      (!corpo._ip || checarRateLimit('rl:loadip:' + h + ':' + ipHash, LIMITS.RATE_LOAD_PER_IP_HOURLY, 3600)) &&
-      checarRateLimit('rl:loadglobal:' + h, LIMITS.RATE_GLOBAL_LOAD_HOURLY, 3600);
-  } finally {
-    if (comLock) lock.releaseLock();
-  }
-  if (!passou) {
+  if (!checarRateLimitLeitura_(corpo, ipHash)) {
     return resposta(429, { erro: 'muitas consultas; tente novamente mais tarde' });
   }
 
@@ -147,6 +130,72 @@ function processarCarregar(corpo, ipHash) {
     versao: completo.versao,
     dados: completo.dados
   });
+}
+
+/**
+ * Rate-limit das operações de LEITURA (carregar/listar2024/carregar2024),
+ * anti-enumeração: contadores de TENTATIVA (contam mesmo quando a consulta
+ * falha, por isso consomem já na checagem). Janela horária fixa (bucketHora)
+ * para não somar o dia inteiro.
+ *
+ * tryLock (curto) em vez de waitLock: o objetivo do lock é apenas tornar atômico
+ * o read-increment-write. Se um ENVIO grande estiver segurando o ScriptLock
+ * (upload de anexos), não vale 503-ar leitores legítimos — segue sem lock,
+ * aceitando a pequena imprecisão de um contador anti-enumeração.
+ * Retorna true se a consulta pode prosseguir.
+ */
+function checarRateLimitLeitura_(corpo, ipHash) {
+  var h = bucketHora();
+  var chaveEmail = 'rl:load:' + h + ':' + hashIP(normalizarEmail(corpo.email));
+  var lock = LockService.getScriptLock();
+  var comLock = false;
+  try { comLock = lock.tryLock(1500); } catch (e) { comLock = false; }
+  try {
+    return checarRateLimit(chaveEmail, LIMITS.RATE_LOAD_PER_EMAIL_HOURLY, 3600) &&
+      (!corpo._ip || checarRateLimit('rl:loadip:' + h + ':' + ipHash, LIMITS.RATE_LOAD_PER_IP_HOURLY, 3600)) &&
+      checarRateLimit('rl:loadglobal:' + h, LIMITS.RATE_GLOBAL_LOAD_HOURLY, 3600);
+  } finally {
+    if (comLock) lock.releaseLock();
+  }
+}
+
+/**
+ * Lista os relatórios de 2024 do autor (por e-mail) para reaproveitamento.
+ * Não exige protocolo (2024 não tinha). Só devolve itens do próprio e-mail; a
+ * resposta para um e-mail sem relatórios é uma lista vazia (não revela nada).
+ */
+function processarListar2024(corpo, ipHash) {
+  if (!validarEmail(corpo.email)) return resposta(400, { erro: 'e-mail inválido' });
+  if (!checarRateLimitLeitura_(corpo, ipHash)) {
+    return resposta(429, { erro: 'muitas consultas; tente novamente mais tarde' });
+  }
+  var ss = abrirPlanilha();
+  var itens = listarImport2024PorEmail(ss, corpo.email);
+  registrarLogSeguro(ipHash, corpo.origin, 'listar2024', String(itens.length), mascararEmail(corpo.email));
+  return resposta(200, { ok: true, itens: itens });
+}
+
+/**
+ * Carrega um relatório de 2024 (por id) para PRÉ-PREENCHER um relatório novo.
+ * Gate de autoria: o e-mail informado precisa bater com o do registro. As duas
+ * falhas (id inexistente / e-mail divergente) devolvem o mesmo 404.
+ */
+function processarCarregar2024(corpo, ipHash) {
+  if (!validarEmail(corpo.email)) return resposta(400, { erro: 'e-mail inválido' });
+  if (typeof corpo.id !== 'string' || !/^BS2024-\d{1,6}$/.test(corpo.id)) {
+    return resposta(400, { erro: 'identificador inválido' });
+  }
+  if (!checarRateLimitLeitura_(corpo, ipHash)) {
+    return resposta(429, { erro: 'muitas consultas; tente novamente mais tarde' });
+  }
+  var ss = abrirPlanilha();
+  var dados = carregarImport2024(ss, corpo.id, corpo.email);
+  if (!dados) {
+    registrarLogSeguro(ipHash, corpo.origin, 'carregar2024_negado', corpo.id, mascararEmail(corpo.email));
+    return resposta(404, { erro: 'relatório de 2024 não encontrado para este e-mail' });
+  }
+  registrarLogSeguro(ipHash, corpo.origin, 'carregar2024_ok', corpo.id, mascararEmail(corpo.email));
+  return resposta(200, { ok: true, dados: dados });
 }
 
 /**

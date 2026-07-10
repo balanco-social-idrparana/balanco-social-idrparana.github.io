@@ -13,7 +13,7 @@ import { EIXOS_ESTRATEGICOS, ODS } from './data/eixos';
 import { GRADE_SOCIAL, GRADE_AMBIENTAL, URL_INDICADORES, DOC_INDICADOR } from './data/grades';
 import {
   enviarRelatorio, editarRelatorio, carregarRelatorio,
-  AnexoPayload, RespostaEnvio,
+  listar2024, carregar2024, AnexoPayload, RespostaEnvio, Item2024,
 } from './lib/api';
 
 /** Protocolo em edição (null = criando um novo relatório). */
@@ -75,6 +75,8 @@ export function App() {
   const [resultado, setResultado] = useState<RespostaEnvio | null>(null);
   const [edicao, setEdicao] = useState<ModoEdicao | null>(null);
   const [rascunhoDe, setRascunhoDe] = useState<number | null>(null);
+  // Formulário pré-preenchido a partir de um relatório de 2024 (relatório NOVO).
+  const [reaproveitado2024, setReaproveitado2024] = useState(false);
   const edicaoRef = useRef<ModoEdicao | null>(edicao);
   edicaoRef.current = edicao;
   // Subscrição a isDirty DURANTE o render (o formState do react-hook-form é um
@@ -134,6 +136,7 @@ export function App() {
       if (r.ok) {
         limparRascunho();
         setRascunhoDe(null);
+        setReaproveitado2024(false);
         if (edicao) {
           // Permanece em modo edição com a nova versão como base; o próximo
           // salvamento criará a versão seguinte. Anexos enviados já foram gravados.
@@ -174,6 +177,27 @@ export function App() {
     setAnexos([]);
     setResultado(null);
     setRascunhoDe(null);
+    setReaproveitado2024(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Pré-preenche um relatório NOVO a partir de um relatório de 2024. Não entra
+  // em modo edição (não há protocolo em 2024): ao enviar, gera um protocolo novo.
+  function aoReaproveitar2024(dados: RelatorioInput) {
+    if (temRascunhoNovoPendente()) {
+      const ok = window.confirm(
+        'Você tem um relatório novo em preenchimento que ainda não foi enviado. ' +
+        'Reaproveitar um relatório de 2024 vai descartá-lo. Deseja continuar?'
+      );
+      if (!ok) return;
+    }
+    limparRascunho();
+    metodos.reset({ ...valoresPadrao, ...dados } as RelatorioInput);
+    setEdicao(null);
+    setAnexos([]);
+    setResultado(null);
+    setRascunhoDe(null);
+    setReaproveitado2024(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -184,6 +208,7 @@ export function App() {
     setResultado(null);
     limparRascunho();
     setRascunhoDe(null);
+    setReaproveitado2024(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -193,6 +218,7 @@ export function App() {
     setEdicao(null);
     setAnexos([]);
     setRascunhoDe(null);
+    setReaproveitado2024(false);
   }
 
   function aoErroValidacao(errs: FieldErrors<RelatorioInput>) {
@@ -226,7 +252,22 @@ export function App() {
 
         <RecursosDownload />
 
+        {!edicao && <ReaproveitarDe2024 onReaproveitar={aoReaproveitar2024} />}
+
         {!edicao && <CarregarParaEditar onCarregar={aoCarregar} />}
+
+        {reaproveitado2024 && !edicao && (
+          <div className="aviso-edicao">
+            <div>
+              <strong>Pré-preenchido a partir de um relatório de 2024</strong>
+              <div>Este é um relatório <strong>novo</strong> (gera um novo protocolo ao enviar). Revise todos os campos e atualize o que mudou em 2025.</div>
+              <div className="campo-ajuda">Não são importados de 2024 e precisam ser preenchidos: as conclusões (social e ambiental), as parcerias, os valores econômicos detalhados (seção 4) e os anexos.</div>
+            </div>
+            <button type="button" className="secundario" onClick={descartarRascunho}>
+              Descartar e recomeçar
+            </button>
+          </div>
+        )}
 
         {edicao && (
           <div className="aviso-edicao">
@@ -398,6 +439,106 @@ function CarregarParaEditar({
         </button>
       </div>
       {erro && <div className="erro-msg">{erro}</div>}
+    </details>
+  );
+}
+
+function ReaproveitarDe2024({
+  onReaproveitar,
+}: {
+  onReaproveitar: (dados: RelatorioInput) => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [itens, setItens] = useState<Item2024[] | null>(null);
+  const [carregandoId, setCarregandoId] = useState<string | null>(null);
+
+  async function buscar() {
+    setErro('');
+    setItens(null);
+    if (!email.trim()) {
+      setErro('Informe o e-mail usado nos relatórios de 2024.');
+      return;
+    }
+    setBuscando(true);
+    try {
+      const r = await listar2024(email);
+      if (r.ok) setItens(r.itens ?? []);
+      else setErro(r.erro || 'Não foi possível buscar os relatórios de 2024.');
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  async function escolher(item: Item2024) {
+    setErro('');
+    setCarregandoId(item.id);
+    try {
+      const r = await carregar2024(item.id, email);
+      if (r.ok && r.dados) onReaproveitar(r.dados);
+      else setErro(r.erro || 'Não foi possível carregar o relatório de 2024.');
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setCarregandoId(null);
+    }
+  }
+
+  return (
+    <details className="carregar-editar">
+      <summary>Preencheu um relatório em 2024? Reaproveitar os dados</summary>
+      <p className="campo-ajuda">
+        Informe o e-mail usado em 2024 para listar seus relatórios do ano passado e começar
+        um relatório <strong>novo</strong> já preenchido com aqueles dados — depois é só revisar
+        e atualizar o que mudou. Conclusões, parcerias, valores econômicos detalhados e anexos
+        não são importados; complete-os antes de enviar.
+      </p>
+      <div className="grid">
+        <Field label="E-mail usado em 2024">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } }}
+          />
+        </Field>
+      </div>
+      <div className="barra-acoes">
+        <button type="button" className="secundario" onClick={buscar} disabled={buscando}>
+          {buscando ? 'Buscando...' : 'Buscar meus relatórios de 2024'}
+        </button>
+      </div>
+      {erro && <div className="erro-msg">{erro}</div>}
+      {itens && itens.length === 0 && (
+        <p className="campo-ajuda">Nenhum relatório de 2024 encontrado para este e-mail.</p>
+      )}
+      {itens && itens.length > 0 && (
+        <ul className="lista-2024">
+          {itens.map((it) => (
+            <li key={it.id}>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => escolher(it)}
+                disabled={carregandoId !== null}
+              >
+                {carregandoId === it.id ? 'Carregando...' : 'Usar'}
+              </button>
+              <span className="lista-2024-info">
+                <strong>{it.titulo || '(sem título)'}</strong>
+                {(it.diretoria || it.programa) && (
+                  <span className="campo-ajuda">
+                    {[it.diretoria, it.programa].filter(Boolean).join(' · ')}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </details>
   );
 }

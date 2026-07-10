@@ -113,6 +113,28 @@ export interface RespostaCarregar {
   _status?: number;
 }
 
+/** Item da lista de relatórios de 2024 (reaproveitamento). */
+export interface Item2024 {
+  id: string;
+  titulo: string;
+  diretoria?: string;
+  programa?: string;
+}
+
+export interface RespostaListar2024 {
+  ok: boolean;
+  itens?: Item2024[];
+  erro?: string;
+  _status?: number;
+}
+
+export interface RespostaCarregar2024 {
+  ok: boolean;
+  dados?: RelatorioInput;
+  erro?: string;
+  _status?: number;
+}
+
 // text/plain evita preflight CORS — Apps Script aceita JSON cru.
 export async function postar<T>(payload: unknown, timeoutMs = TIMEOUT_BASE_MS): Promise<T> {
   if (!API_URL) throw new Error('VITE_API_URL não configurado');
@@ -204,4 +226,35 @@ export async function carregarRelatorio(
     recaptcha_token,
   };
   return postar<RespostaCarregar>(payload);
+}
+
+/**
+ * Lista os relatórios de 2024 do autor (gate: e-mail). Em 2024 não havia
+ * protocolo, então a escolha é feita pela lista dos próprios relatórios.
+ */
+export async function listar2024(email: string): Promise<RespostaListar2024> {
+  const recaptcha_token = await executarRecaptcha('carregar_bs');
+  const payload = {
+    acao: 'listar2024',
+    email: email.trim(),
+    origin: window.location.origin,
+    recaptcha_token,
+  };
+  return postar<RespostaListar2024>(payload);
+}
+
+/**
+ * Carrega os dados de um relatório de 2024 (por id + e-mail do autor) para
+ * PRÉ-PREENCHER um relatório novo de 2025.
+ */
+export async function carregar2024(id: string, email: string): Promise<RespostaCarregar2024> {
+  const recaptcha_token = await executarRecaptcha('carregar_bs');
+  const payload = {
+    acao: 'carregar2024',
+    id: id.trim(),
+    email: email.trim(),
+    origin: window.location.origin,
+    recaptcha_token,
+  };
+  return postar<RespostaCarregar2024>(payload);
 }

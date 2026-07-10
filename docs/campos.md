@@ -111,6 +111,11 @@ A regravação substitui apenas o par (`protocolo`, `versao`) da edição corren
   UI atual só envia `foto_documento` (fotos/documentos opcionais).
 - **`_log`** — `timestamp`, `ip_hash`, `origin`, `acao`, `ref`, `detalhe`.
   Interno.
+- **`import_2024`** — snapshot dos relatórios de 2024 para reaproveitamento
+  (fora do fluxo de envio; não versionada). `id`, `email_norm`, `email`,
+  `responsavel`, `titulo`, `diretoria_departamento`, `programa_projeto`,
+  `dados_json`. Populada por `importar2024` (Importar2024.gs); lida pelas ações
+  `listar2024`/`carregar2024`. Ver `docs/contrato-dados.md` e `docs/deploy.md`.
 
 ## Eixos estratégicos
 

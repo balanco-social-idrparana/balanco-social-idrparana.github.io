@@ -49,6 +49,16 @@ Ações do `doPost` (campo `acao` no payload, default `enviar`):
 - `carregar` — retorna a última versão de um `protocolo` para reedição. Mesmo
   gate de autoria (`protocolo` + `email`). Resposta para protocolo inexistente e
   e-mail divergente é idêntica (`404`), para não revelar a existência do protocolo.
+- `listar2024` — lista os relatórios de **2024** de um `email` (2024 não tinha
+  protocolo). Retorna `{ ok, itens: [{ id, titulo, diretoria, programa }] }`; só
+  os do próprio e-mail (lista vazia se nenhum). Ver "Aba `import_2024`" abaixo.
+- `carregar2024` — retorna os dados de um relatório de 2024 (por `id` + `email`)
+  no formato do payload de envio, para **pré-preencher um relatório novo** de
+  2025 (não entra em modo edição; ao enviar gera protocolo novo). Gate por
+  e-mail; `id`/e-mail divergente → `404`.
+
+As três leituras (`carregar`, `listar2024`, `carregar2024`) usam a action
+reCAPTCHA `carregar_bs` e o mesmo rate-limit de leitura (anti-enumeração).
 
 ## Aba `relatorios` (principal) — colunas, nesta ordem
 
@@ -179,6 +189,32 @@ Todos os escalares acima (exceto os gerados pelo backend) + arrays:
   consultas/h no app inteiro) — exceder qualquer um responde `429`. O limite
   por e-mail só é **consumido após o sucesso da gravação** (uma submissão
   rejeitada na validação não queima a janela de reenvio).
+
+## Aba `import_2024` (snapshot de reaproveitamento) — fora do fluxo de envio
+
+Populada uma vez por `importar2024` (`apps-script/Importar2024.gs`) a partir da
+planilha de respostas de 2024; lida só pelas ações `listar2024`/`carregar2024`.
+Não é versionada nem tocada no envio. Colunas:
+
+| coluna | conteúdo |
+|---|---|
+| `id` | identificador estável do snapshot (`BS2024-NNN`) |
+| `email_norm` | e-mail normalizado (chave de busca; `normalizarEmail`) |
+| `email` | e-mail original do autor em 2024 |
+| `responsavel` | nome do responsável (exibição) |
+| `titulo` | título da ação/tecnologia (exibição) |
+| `diretoria_departamento` | diretoria/gerência (exibição) |
+| `programa_projeto` | programa/projeto (exibição) |
+| `dados_json` | RelatorioInput completo (JSON) para pré-preenchimento |
+
+Mapeamento 2024 → 2025 (posicional; contagem de coeficientes idêntica):
+grades convertidas para a escala `{ -3,-1,0,1,3,NA }` (`Não se aplica` → `NA`;
+coeficiente sem resposta é omitido); o rótulo `Condição do trabalhador` (2024)
+casa por posição com `Qualidade do emprego` (2025). **Não** migram de 2024:
+conclusões (`social_conclusao`/`amb_conclusao` ficam vazias), `parcerias` (eram
+texto livre), `econ_detalhe` (valores numéricos) e anexos — o autor completa.
+LGPD: guarda e-mails/textos; as ações web só devolvem os relatórios do e-mail
+consultado.
 
 ## Aspectos (chaves) e grupos de coeficientes
 
